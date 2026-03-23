@@ -5,6 +5,9 @@
 #include <chrono>
 #include <stack>
 #include <random>
+#include <sstream>
+#include <iomanip>
+#include <filesystem>
 
 // OpenCV (does not depend on GL)
 #include <opencv2\opencv.hpp>
@@ -33,6 +36,10 @@
 #include "gl_err_callback.h"
 #include "gl_utils.h"
 #include "glfw_callbacks.h"
+
+#include "OBJloader.hpp"
+#include "ShaderProgram.hpp"
+#include "Mesh.hpp"
 
 App::App()
 {
@@ -98,7 +105,6 @@ bool App::init() {
             throw std::runtime_error("GLFW not initialized properly!");
         }
 
-
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -107,7 +113,7 @@ bool App::init() {
         // Task 1.3: hide window during initialization
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
-    	window = glfwCreateWindow(800, 600, "OpenGL context", nullptr, nullptr);
+        window = glfwCreateWindow(800, 600, "OpenGL context", nullptr, nullptr);
         glfwMakeContextCurrent(window);
         glfwSwapInterval(vsync_on_ ? 1 : 0);
 
@@ -121,11 +127,9 @@ bool App::init() {
         glfwGetFramebufferSize(window, &fb_width_, &fb_height_);
         glViewport(0, 0, fb_width_, fb_height_);
 
-       	// init glew
-    	// http://glew.sourceforge.net/basic.html
+        // init glew
+        // http://glew.sourceforge.net/basic.html
         // DONETODO: add error checking!
-
-
 
         GLenum err = glewInit();
         if (GLEW_OK != err)
@@ -133,13 +137,11 @@ bool App::init() {
             /* Problem: glewInit failed, something is seriously wrong. */
             fprintf(stderr, "Error: %p\n", glewGetErrorString(err));
             throw std::runtime_error("GLFW not initialized properly!");
-
-          }
+        }
         (void)glGetError();
 
         if (!GLEW_ARB_direct_state_access)
             throw std::runtime_error("No DSA :-(");
-
 
         // //TODO: get info about your GL context
         //
@@ -155,8 +157,8 @@ bool App::init() {
         // }
         // else
         //     std::cout << "GL_DEBUG NOT SUPPORTED!" << std::endl;
-            glutilPrintContextInfoOrThrow(4, 6, 1);
-            glutilTryEnableDebugOutput(MessageCallback, nullptr);
+        glutilPrintContextInfoOrThrow(4, 6, 1);
+        glutilTryEnableDebugOutput(MessageCallback, nullptr);
     }
 
     init_assets();
@@ -173,62 +175,34 @@ void App::init_assets(void) {
     //
     // Initialize pipeline: compile, link and use shaders
     //
+    // load shaders from files (.vert/.frag)
+    //
+    std::filesystem::path vs = "resources/shaders/basic_core_2.vert";
+    std::filesystem::path fs = "resources/shaders/basic_uniform_2.frag";
 
-    //SHADERS - define & compile & link
-    const char* vertex_shader =
-        "#version 460 core\n"
-        "in vec3 attribute_Position;"
-        "void main() {"
-        "  gl_Position = vec4(attribute_Position, 1.0);"
-        "}";
-
-    const char* fragment_shader =
-        "#version 460 core\n"
-        "uniform vec4 uniform_Color;"
-        "out vec4 FragColor;"
-        "void main() {"
-        "  FragColor = uniform_Color;"
-        "}";
-
-    GLuint vs = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vs, 1, &vertex_shader, nullptr);
-    glCompileShader(vs);
-
-    GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fs, 1, &fragment_shader, nullptr);
-    glCompileShader(fs);
-
-    shader_prog_ID = glCreateProgram();
-    glAttachShader(shader_prog_ID, fs);
-    glAttachShader(shader_prog_ID, vs);
-    glLinkProgram(shader_prog_ID);
-
-    //now we can delete shader parts (they can be reused, if you have more shaders)
-    //the final shader program already linked and stored separately
-    glDetachShader(shader_prog_ID, fs);
-    glDetachShader(shader_prog_ID, vs);
-    glDeleteShader(vs);
-    glDeleteShader(fs);
+    if (!std::filesystem::exists(vs) || !std::filesystem::exists(fs)) {
+        throw std::runtime_error("Shader files missing. Expected: resources/shaders/simple.vert + simple.frag. "
+                                 "Set working directory to project root or copy resources next to executable.");
+    }
+    shader_ = std::make_shared<ShaderProgram>(vs, fs);
 
     //
-    // Create and load data into GPU using OpenGL DSA (Direct State Access)
+    // load triangle vertex data from .OBJ and create VAO/VBO/EBO using DSA
     //
+    std::filesystem::path obj = "resources/models/triangle.obj";
+    if (!std::filesystem::exists(obj)) {
+        throw std::runtime_error("OBJ file missing. Expected: resources/models/triangle.obj. "
+                                 "Set working directory to project root or copy resources next to executable.");
+    }
 
-    // Create VAO + data description (similar to container)
-    glCreateVertexArrays(1, &VAO_ID);
+    std::vector<Vertex> vertices;
+    std::vector<GLuint> indices;
+    if (!loadOBJ(obj, vertices, indices)) {
+        throw std::runtime_error("OBJ loading failed: " + obj.string());
+    }
 
-    GLint position_attrib_location = glGetAttribLocation(shader_prog_ID, "attribute_Position");
-    vertex v;
-    glEnableVertexArrayAttrib(VAO_ID, position_attrib_location);
-    glVertexArrayAttribFormat(VAO_ID, position_attrib_location, v.position.length(), GL_FLOAT, GL_FALSE, offsetof(vertex, position));
-    glVertexArrayAttribBinding(VAO_ID, position_attrib_location, 0); // (GLuint vaobj, GLuint attribindex, GLuint bindingindex)
-
-    // Create and fill data
-    glCreateBuffers(1, &VBO_ID);
-    glNamedBufferData(VBO_ID, triangle_vertices.size() * sizeof(vertex), triangle_vertices.data(), GL_STATIC_DRAW);
-
-    // Connect together
-    glVertexArrayVertexBuffer(VAO_ID, 0, VBO_ID, 0, sizeof(vertex)); // (GLuint vaobj, GLuint bindingindex, GLuint buffer, GLintptr offset, GLsizei stride)
+    // Use also EBO (indirect vertex addressing)
+    mesh_ = std::make_shared<Mesh>(vertices, indices, GL_TRIANGLES);
 }
 
 void App::init_imgui()
@@ -244,19 +218,17 @@ void App::init_imgui()
 int App::run()
 {
     try {
-        glUseProgram(shader_prog_ID);
         glEnable(GL_DEPTH_TEST);
-
-        GLint uniform_color_location = glGetUniformLocation(shader_prog_ID, "uniform_Color");
-        if (uniform_color_location == -1) {
-            std::cerr << "Uniform location not found in shader program.\n";
-        }
 
         fps_last_t_ = glfwGetTime();
         title_last_t_ = fps_last_t_;
         fps_accum_dt_ = 0.0;
         fps_frames_ = 0;
         fps_value_ = 0.0;
+
+        if (!shader_ || !mesh_) {
+            throw std::runtime_error("Assets not initialized (shader_/mesh_ is null).");
+        }
 
         while (!glfwWindowShouldClose(window)) {
             const double t = glfwGetTime();
@@ -307,11 +279,6 @@ int App::run()
                 ImGui::ColorEdit4("Triangle", &tri_color_.x);
                 ImGui::ColorEdit4("Clear", &clear_color_.x);
 
-                ImGui::Separator();
-                ImGui::Text("Cursor: %s (TAB toggle)", cursor_captured_ ? "captured" : "free");
-                ImGui::Text("Mouse:  (%.1f, %.1f)", cursor_x_, cursor_y_);
-                ImGui::Text("FB:     %dx%d", fb_width_, fb_height_);
-
                 ImGui::End();
             }
 
@@ -330,10 +297,11 @@ int App::run()
                 col.g *= gmod;
                 col.b *= bmod;
             }
-            glUniform4f(uniform_color_location, col.r, col.g, col.b, col.a);
 
-            glBindVertexArray(VAO_ID);
-            glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(triangle_vertices.size()));
+            // Fragment shader expects: uniform vec4 ucolor;
+            shader_->setUniform("ucolor", col);
+            shader_->use();
+            mesh_->draw();
 
             // render ImGui on top
             if (show_imgui && imgui_inited_) {
@@ -363,7 +331,8 @@ void App::on_key(int key, int /*scancode*/, int action, int /*mods*/)
     if (action != GLFW_PRESS && action != GLFW_REPEAT) return;
 
     switch (key) {
-        case GLFW_KEY_ESCAPE:
+    case GLFW_KEY_ESCAPE:
+        // ESC releases cursor first, second ESC quits
         if (cursor_captured_) {
             set_cursor_captured_(false);
             return;
@@ -390,21 +359,7 @@ void App::on_key(int key, int /*scancode*/, int action, int /*mods*/)
         show_imgui = !show_imgui;
         break;
 
-    case GLFW_KEY_1:
-        tri_color_ = {1.0f, 0.2f, 0.2f, 1.0f};
-        break;
-    case GLFW_KEY_2:
-        tri_color_ = {0.2f, 1.0f, 0.2f, 1.0f};
-        break;
-    case GLFW_KEY_3:
-        tri_color_ = {0.2f, 0.4f, 1.0f, 1.0f};
-        break;
-    case GLFW_KEY_4:
-        tri_color_ = {1.0f, 1.0f, 1.0f, 1.0f};
-        break;
-
     case GLFW_KEY_A:
-        // toggle animation
         animate_color_ = !animate_color_;
         break;
 
@@ -415,7 +370,6 @@ void App::on_key(int key, int /*scancode*/, int action, int /*mods*/)
     }
 
     case GLFW_KEY_V:
-        // toggle vsynch
         vsync_on_ = !vsync_on_;
         glfwSwapInterval(vsync_on_ ? 1 : 0);
         break;
@@ -465,16 +419,15 @@ void App::on_scroll(double /*xoffset*/, double /*yoffset*/)
 
 App::~App()
 {
+    mesh_.reset();
+    shader_.reset();
+
     if (imgui_inited_) {
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplGlfw_Shutdown();
         ImGui::DestroyContext();
         imgui_inited_ = false;
     }
-
-    if (shader_prog_ID) glDeleteProgram(shader_prog_ID);
-    if (VBO_ID) glDeleteBuffers(1, &VBO_ID);
-    if (VAO_ID) glDeleteVertexArrays(1, &VAO_ID);
 
     if (window) {
         glfwDestroyWindow(window);

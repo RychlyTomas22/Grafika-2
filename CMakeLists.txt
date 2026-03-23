@@ -25,6 +25,8 @@ set(PROJECT_SOURCES
         gl_err_callback.cpp
         app.cpp
         main.cpp
+        ShaderProgram.cpp
+        OBJloader.cpp
 )
 
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCES})

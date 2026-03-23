@@ -15,6 +15,10 @@
 #include <vector>
 #include <random>
 #include <string>
+#include <memory>
+
+#include "ShaderProgram.hpp"
+#include "Mesh.hpp"
 
 class App {
 public:
@@ -35,7 +39,6 @@ public:
     void on_cursor_pos(double x, double y);
     void on_scroll(double xoffset, double yoffset);
 
-
 private:
 
     bool vsync_on_ = true;
@@ -54,7 +57,6 @@ private:
     bool imgui_inited_{false};
     void set_cursor_captured_(bool captured);
     void toggle_fullscreen_();
-    GLFWmonitor* best_monitor_for_window_() const;
 
     // runtime state controlled via callbacks
     glm::vec4 tri_color_{ 1.0f, 1.0f, 1.0f, 1.0f };
@@ -67,9 +69,12 @@ private:
     double cursor_x_{ 0.0 };
     double cursor_y_{ 0.0 };
 
-
     std::mt19937 rng_{ std::random_device{}() };
     std::string base_title_{ "OpenGL context" };
+
+    // loaded assets
+    std::shared_ptr<ShaderProgram> shader_;
+    std::shared_ptr<Mesh> mesh_;
 
     // FPS / title update
     double fps_last_t_{ 0.0 };
@@ -77,17 +82,4 @@ private:
     int fps_frames_{ 0 };
     double fps_value_{ 0.0 };
     double title_last_t_{ 0.0 };
-
-
-    GLuint shader_prog_ID{ 0 };
-    GLuint VBO_ID{ 0 };
-    GLuint VAO_ID{ 0 };
-
-    std::vector<vertex> triangle_vertices =
-    {
-        {{0.0f,  0.5f,  0.0f}},
-        {{0.5f, -0.5f,  0.0f}},
-        {{-0.5f, -0.5f,  0.0f}}
-    };
-
 };
