@@ -53,6 +53,7 @@ void App::set_cursor_captured_(bool captured)
     cursor_captured_ = captured;
 
     if (captured) {
+        first_mouse_ = true;
         esc_primed_to_quit_ = false;
     }
 }
@@ -94,6 +95,10 @@ void App::toggle_fullscreen_()
         is_fullscreen_ = false;
     }
 }
+static glm::mat4 make_perspective(float fov_deg, float aspect, float znear, float zfar)
+{
+    return glm::perspective(glm::radians(fov_deg), aspect, znear, zfar);
+}
 
 bool App::init() {
 
@@ -125,6 +130,10 @@ bool App::init() {
         glfwcbRegisterAll(window);
 
         glfwGetFramebufferSize(window, &fb_width_, &fb_height_);
+
+        const float aspect = static_cast<float>(fb_width_) / static_cast<float>(fb_height_);
+        proj_ = make_perspective(fov_deg_, aspect, znear_, zfar_);
+
         glViewport(0, 0, fb_width_, fb_height_);
 
         // init glew
@@ -189,7 +198,7 @@ void App::init_assets(void) {
     //
     // load triangle vertex data from .OBJ and create VAO/VBO/EBO using DSA
     //
-    std::filesystem::path obj = "resources/models/triangle.obj";
+    std::filesystem::path obj = "resources/models/bunny_tri_vnt.obj";
     if (!std::filesystem::exists(obj)) {
         throw std::runtime_error("OBJ file missing. Expected: resources/models/triangle.obj. "
                                  "Set working directory to project root or copy resources next to executable.");
@@ -243,6 +252,18 @@ int App::run()
                 fps_frames_ = 0;
             }
 
+            const float dtf = static_cast<float>(dt);
+            const float v = cam_speed_ * dtf;
+
+            if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) cam_pos_ += v * cam_front_;
+            if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) cam_pos_ -= v * cam_front_;
+
+            glm::vec3 right = glm::normalize(glm::cross(cam_front_, cam_up_));
+            if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) cam_pos_ += v * right;
+            if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) cam_pos_ -= v * right;
+
+            glm::mat4 view = glm::lookAt(cam_pos_, cam_pos_ + cam_front_, cam_up_);\
+
             // Title update is fine in windowed, but fullscreen has no visible title bar.
             if (!is_fullscreen_ && (t - title_last_t_) >= 0.25) {
                 std::ostringstream oss;
@@ -266,7 +287,7 @@ int App::run()
                 ImGui::Text("dt:  %.4f s", dt);
                 ImGui::Separator();
 
-                ImGui::Checkbox("Show ImGui (D)", &show_imgui);
+                ImGui::Checkbox("Show ImGui (F1)", &show_imgui);
                 if (ImGui::Checkbox("VSync (V)", &vsync_on_)) {
                     glfwSwapInterval(vsync_on_ ? 1 : 0);
                 }
@@ -275,7 +296,7 @@ int App::run()
                     toggle_fullscreen_();
                 }
 
-                ImGui::Checkbox("Animate (A)", &animate_color_);
+                ImGui::Checkbox("Animate (P)", &animate_color_);
                 ImGui::ColorEdit4("Triangle", &tri_color_.x);
                 ImGui::ColorEdit4("Clear", &clear_color_.x);
 
@@ -299,8 +320,14 @@ int App::run()
             }
 
             // Fragment shader expects: uniform vec4 ucolor;
-            shader_->setUniform("ucolor", col);
+
+            glm::mat4 m_m(1.0f);
+            m_m = glm::rotate(m_m, static_cast<float>(t), glm::vec3(0.0f, 1.0f, 0.0f));
             shader_->use();
+            shader_->setUniform("ucolor", col);
+            shader_->setUniform("uM_m", m_m);
+            shader_->setUniform("uV_m", view);
+            shader_->setUniform("uP_m", proj_);
             mesh_->draw();
 
             // render ImGui on top
@@ -354,12 +381,12 @@ void App::on_key(int key, int /*scancode*/, int action, int /*mods*/)
         toggle_fullscreen_();
         break;
 
-    case GLFW_KEY_D:
+    case GLFW_KEY_F1:
         // show/hide ImGui
         show_imgui = !show_imgui;
         break;
 
-    case GLFW_KEY_A:
+    case GLFW_KEY_P:
         animate_color_ = !animate_color_;
         break;
 
@@ -383,6 +410,9 @@ void App::on_fbsize(int width, int height) {
     fb_width_ = (width > 0) ? width : 1;
     fb_height_ = (height > 0) ? height : 1;
     glViewport(0, 0, fb_width_, fb_height_);
+
+    const float aspect = static_cast<float>(fb_width_) / static_cast<float>(fb_height_);
+    proj_ = make_perspective(fov_deg_, aspect, znear_, zfar_);
 }
 
 void App::on_mouse_button(int button, int action, int /*mods*/)
@@ -411,6 +441,40 @@ void App::on_cursor_pos(double x, double y)
 {
     cursor_x_ = x;
     cursor_y_ = y;
+
+    if (!cursor_captured_) {
+        first_mouse_ = true;
+        return;
+    }
+
+    if (first_mouse_) {
+        last_x_ = x;
+        last_y_ = y;
+        first_mouse_ = false;
+        return;
+    }
+
+    const double dx = x - last_x_;
+    const double dy = last_y_ - y;
+    last_x_ = x;
+    last_y_ = y;
+
+    yaw_deg_   += static_cast<float>(dx) * mouse_sensitivity_;
+    pitch_deg_ += static_cast<float>(dy) * mouse_sensitivity_;
+
+    // flip prevention
+    if (pitch_deg_ > 89.0f) pitch_deg_ = 89.0f;
+    if (pitch_deg_ < -89.0f) pitch_deg_ = -89.0f;
+
+    const float yaw   = glm::radians(yaw_deg_);
+    const float pitch = glm::radians(pitch_deg_);
+
+    glm::vec3 front;
+    front.x = std::cos(yaw) * std::cos(pitch);
+    front.y = std::sin(pitch);
+    front.z = std::sin(yaw) * std::cos(pitch);
+
+    cam_front_ = glm::normalize(front);
 }
 
 void App::on_scroll(double /*xoffset*/, double /*yoffset*/)

@@ -82,4 +82,20 @@ private:
     int fps_frames_{ 0 };
     double fps_value_{ 0.0 };
     double title_last_t_{ 0.0 };
+
+    // camera
+    float fov_deg_{60.0f};
+    float znear_{0.1f};
+    float zfar_{100.0f};
+    glm::mat4 proj_{1.0f};
+    glm::vec3 cam_pos_{0.0f, 0.0f, 2.0f};
+    glm::vec3 cam_front_{0.0f, 0.0f, -1.0f};
+    glm::vec3 cam_up_{0.0f, 1.0f, 0.0f};
+    float cam_speed_{2.5f};
+    bool first_mouse_{true};
+    double last_x_{0.0};
+    double last_y_{0.0};
+    float yaw_deg_{-90.0f};
+    float pitch_deg_{0.0f};
+    float mouse_sensitivity_{0.12f};
 };
