@@ -19,6 +19,7 @@
 
 #include "ShaderProgram.hpp"
 #include "Mesh.hpp"
+#include "Texture.hpp"
 
 class App {
 public:
@@ -58,6 +59,9 @@ private:
     void set_cursor_captured_(bool captured);
     void toggle_fullscreen_();
 
+    bool screenshot_next_frame_{false};
+    std::string screenshot_path_;
+
     // runtime state controlled via callbacks
     glm::vec4 tri_color_{ 1.0f, 1.0f, 1.0f, 1.0f };
     glm::vec4 clear_color_{ 0.08f, 0.08f, 0.10f, 1.0f };
@@ -75,6 +79,7 @@ private:
     // loaded assets
     std::shared_ptr<ShaderProgram> shader_;
     std::shared_ptr<Mesh> mesh_;
+    std::shared_ptr<Texture> texture_;
 
     // FPS / title update
     double fps_last_t_{ 0.0 };
