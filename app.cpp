@@ -40,6 +40,7 @@
 #include "OBJloader.hpp"
 #include "ShaderProgram.hpp"
 #include "Mesh.hpp"
+#include "Texture.hpp"
 
 App::App()
 {
@@ -115,8 +116,10 @@ bool App::init() {
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
 
-        // Task 1.3: hide window during initialization
+        // hide window during initialization
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+        // antialiasing
+        glfwWindowHint(GLFW_SAMPLES, 4);
 
         window = glfwCreateWindow(800, 600, "OpenGL context", nullptr, nullptr);
         glfwMakeContextCurrent(window);
@@ -147,6 +150,9 @@ bool App::init() {
             fprintf(stderr, "Error: %p\n", glewGetErrorString(err));
             throw std::runtime_error("GLFW not initialized properly!");
         }
+
+        glEnable(GL_MULTISAMPLE);
+
         (void)glGetError();
 
         if (!GLEW_ARB_direct_state_access)
@@ -174,8 +180,9 @@ bool App::init() {
 
     init_imgui();
 
-    // Task 1.3: show window after heavy init is done
+    // show window after heavy init is done
     glfwShowWindow(window);
+
 
     return true;
 }
@@ -186,8 +193,8 @@ void App::init_assets(void) {
     //
     // load shaders from files (.vert/.frag)
     //
-    std::filesystem::path vs = "resources/shaders/basic_core_2.vert";
-    std::filesystem::path fs = "resources/shaders/basic_uniform_2.frag";
+    std::filesystem::path vs = "resources/shaders/tex.vert";
+    std::filesystem::path fs = "resources/shaders/tex.frag";
 
     if (!std::filesystem::exists(vs) || !std::filesystem::exists(fs)) {
         throw std::runtime_error("Shader files missing. Expected: resources/shaders/simple.vert + simple.frag. "
@@ -198,7 +205,7 @@ void App::init_assets(void) {
     //
     // load triangle vertex data from .OBJ and create VAO/VBO/EBO using DSA
     //
-    std::filesystem::path obj = "resources/models/bunny_tri_vnt.obj";
+    std::filesystem::path obj = "resources/models/cube_triangles_vnt.obj";
     if (!std::filesystem::exists(obj)) {
         throw std::runtime_error("OBJ file missing. Expected: resources/models/triangle.obj. "
                                  "Set working directory to project root or copy resources next to executable.");
@@ -212,6 +219,9 @@ void App::init_assets(void) {
 
     // Use also EBO (indirect vertex addressing)
     mesh_ = std::make_shared<Mesh>(vertices, indices, GL_TRIANGLES);
+
+    std::shared_ptr<Texture> tex = std::make_shared<Texture>("resources/textures/box_rgb888.png");
+    texture_ = tex;
 }
 
 void App::init_imgui()
@@ -222,6 +232,17 @@ void App::init_imgui()
     ImGui_ImplOpenGL3_Init();
     imgui_inited_ = true;
     std::cout << "ImGUI version: " << ImGui::GetVersion() << "\n";
+
+}
+
+static void save_screenshot_bgr(const std::string& path, int w, int h)
+{
+    cv::Mat img(h, w, CV_8UC3);
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    glReadBuffer(GL_BACK); // default back buffer
+    glReadPixels(0, 0, w, h, GL_BGR, GL_UNSIGNED_BYTE, img.data);
+    cv::flip(img, img, 0); // OpenGL origin bottom-left
+    cv::imwrite(path, img);
 }
 
 int App::run()
@@ -282,9 +303,21 @@ int App::run()
                     ImGuiWindowFlags_AlwaysAutoResize |
                     ImGuiWindowFlags_NoSavedSettings;
 
+                GLboolean msaa_enabled = glIsEnabled(GL_MULTISAMPLE);
+                GLint sample_buffers = 0;
+                GLint samples = 0;
+                glGetIntegerv(GL_SAMPLE_BUFFERS, &sample_buffers);
+                glGetIntegerv(GL_SAMPLES, &samples);
+
                 ImGui::Begin("HUD", nullptr, flags);
                 ImGui::Text("FPS: %.1f", fps_value_);
                 ImGui::Text("dt:  %.4f s", dt);
+                ImGui::Separator();
+
+                ImGui::Text("MSAA: %s", msaa_enabled ? "ON" : "OFF");
+                ImGui::Text("Sample buffers: %d", sample_buffers);
+                ImGui::Text("Samples: %d", samples);
+
                 ImGui::Separator();
 
                 ImGui::Checkbox("Show ImGui (F1)", &show_imgui);
@@ -324,7 +357,9 @@ int App::run()
             glm::mat4 m_m(1.0f);
             m_m = glm::rotate(m_m, static_cast<float>(t), glm::vec3(0.0f, 1.0f, 0.0f));
             shader_->use();
-            shader_->setUniform("ucolor", col);
+            texture_->bind();
+            shader_->setUniform("tex0", 0);
+            //shader_->setUniform("ucolor", col);
             shader_->setUniform("uM_m", m_m);
             shader_->setUniform("uV_m", view);
             shader_->setUniform("uP_m", proj_);
@@ -335,7 +370,10 @@ int App::run()
                 ImGui::Render();
                 ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
             }
-
+            if (screenshot_next_frame_) {
+                save_screenshot_bgr(screenshot_path_, fb_width_, fb_height_);
+                screenshot_next_frame_ = false;
+            }
             glfwSwapBuffers(window);
             glfwPollEvents();
         }
@@ -400,6 +438,27 @@ void App::on_key(int key, int /*scancode*/, int action, int /*mods*/)
         vsync_on_ = !vsync_on_;
         glfwSwapInterval(vsync_on_ ? 1 : 0);
         break;
+
+    case GLFW_KEY_M: // MSAA toggle
+        if (glIsEnabled(GL_MULTISAMPLE)) glDisable(GL_MULTISAMPLE);
+        else glEnable(GL_MULTISAMPLE);
+        break;
+
+    case GLFW_KEY_F2: // screenshot
+        save_screenshot_bgr("resources/screenshots/screenshot.png", fb_width_, fb_height_);
+        break;
+
+        case GLFW_KEY_F3:
+            glDisable(GL_MULTISAMPLE);
+            screenshot_path_ = "resources/screenshots/screenshot_no_msaa.png";
+            screenshot_next_frame_ = true;
+            break;
+
+        case GLFW_KEY_F4:
+            glEnable(GL_MULTISAMPLE);
+            screenshot_path_ = "resources/screenshots/screenshot_msaa.png";
+            screenshot_next_frame_ = true;
+            break;
 
     default:
         break;
@@ -476,6 +535,8 @@ void App::on_cursor_pos(double x, double y)
 
     cam_front_ = glm::normalize(front);
 }
+
+
 
 void App::on_scroll(double /*xoffset*/, double /*yoffset*/)
 {

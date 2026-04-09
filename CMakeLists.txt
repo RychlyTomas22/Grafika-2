@@ -27,6 +27,7 @@ set(PROJECT_SOURCES
         main.cpp
         ShaderProgram.cpp
         OBJloader.cpp
+        Texture.cpp
 )
 
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCES})
