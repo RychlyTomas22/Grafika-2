@@ -193,8 +193,8 @@ void App::init_assets(void) {
     //
     // load shaders from files (.vert/.frag)
     //
-    std::filesystem::path vs = "resources/shaders/tex.vert";
-    std::filesystem::path fs = "resources/shaders/tex.frag";
+    std::filesystem::path vs = "resources/shaders/point.vert";
+    std::filesystem::path fs = "resources/shaders/point_or_directional.frag";
 
     if (!std::filesystem::exists(vs) || !std::filesystem::exists(fs)) {
         throw std::runtime_error("Shader files missing. Expected: resources/shaders/simple.vert + simple.frag. "
@@ -283,7 +283,7 @@ int App::run()
             if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) cam_pos_ += v * right;
             if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) cam_pos_ -= v * right;
 
-            glm::mat4 view = glm::lookAt(cam_pos_, cam_pos_ + cam_front_, cam_up_);\
+            glm::mat4 view = glm::lookAt(cam_pos_, cam_pos_ + cam_front_, cam_up_);
 
             // Title update is fine in windowed, but fullscreen has no visible title bar.
             if (!is_fullscreen_ && (t - title_last_t_) >= 0.25) {
@@ -355,7 +355,21 @@ int App::run()
             // Fragment shader expects: uniform vec4 ucolor;
 
             glm::mat4 m_m(1.0f);
-            m_m = glm::rotate(m_m, static_cast<float>(t), glm::vec3(0.0f, 1.0f, 0.0f));
+            //m_m = glm::rotate(m_m, static_cast<float>(t), glm::vec3(0.0f, 1.0f, 0.0f));
+
+            const float light_radius = 1.0f;
+            const float light_height = 0.0f;
+            const float light_speed = 0.2f;
+
+            glm::vec3 light_world;
+            light_world.x = std::cos(light_speed * static_cast<float>(t)) * light_radius;
+            light_world.y = light_height;
+            light_world.z = std::sin(light_speed * static_cast<float>(t)) * light_radius;
+
+            // převod do VIEW space, protože point.vert očekává light_position ve view space
+            glm::vec3 light_view =
+                glm::vec3(view * glm::vec4(light_world, 1.0f));
+
             shader_->use();
             texture_->bind();
             shader_->setUniform("tex0", 0);
@@ -363,6 +377,29 @@ int App::run()
             shader_->setUniform("uM_m", m_m);
             shader_->setUniform("uV_m", view);
             shader_->setUniform("uP_m", proj_);
+
+            //shader_->setUniform("light_position", glm::normalize(-sun_.direction));
+
+            //shader_->setUniform("light_direction", glm::normalize(sun_.direction));
+            shader_->setUniform("light_position", light_view);
+            /*
+            shader_->setUniform("ambient_intensity", sun_.ambient);
+            shader_->setUniform("diffuse_intensity", sun_.diffuse);
+            shader_->setUniform("specular_intensity", sun_.specular);
+            */
+            shader_->setUniform("ambient_intensity", point_light_.ambient);
+            shader_->setUniform("diffuse_intensity", point_light_.diffuse);
+            shader_->setUniform("specular_intensity", point_light_.specular);
+
+            shader_->setUniform("ambient_material", material_ambient_);
+            shader_->setUniform("diffuse_material", material_diffuse_);
+            shader_->setUniform("specular_material", material_specular_);
+            shader_->setUniform("specular_shinines", material_shininess_);
+            /*
+            shader_->setUniform("light_constant", point_light_.constant);
+            shader_->setUniform("light_linear", point_light_.linear);
+            shader_->setUniform("light_quadratic", point_light_.quadratic);
+            */
             mesh_->draw();
 
             // render ImGui on top
