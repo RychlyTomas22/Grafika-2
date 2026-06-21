@@ -45,6 +45,8 @@ private:
     bool vsync_on_ = true;
     bool show_imgui{true};
 
+    void load_config_();
+
     // Task 1.2: mouse cursor capture / release
     bool cursor_captured_{false};
     bool esc_primed_to_quit_{false};
@@ -74,12 +76,34 @@ private:
     double cursor_y_{ 0.0 };
 
     std::mt19937 rng_{ std::random_device{}() };
+
+    // Window config
     std::string base_title_{ "OpenGL context" };
+    int window_width_{ 800 };
+    int window_height_{ 600 };
+    int msaa_samples_{ 4 };
+
+    // loaded assets
+    struct SceneObject {
+        std::shared_ptr<Mesh> mesh;
+        std::shared_ptr<Texture> texture;
+
+        glm::vec3 position{ 0.0f, 0.0f, 0.0f };
+        glm::vec3 scale{ 1.0f, 1.0f, 1.0f };
+        glm::vec3 rotation_axis{ 0.0f, 1.0f, 0.0f };
+
+        float rotation_speed{ 0.0f };
+        float vertical_amplitude{ 0.0f };
+        float vertical_speed{ 0.0f };
+        float vertical_phase{ 0.0f };
+
+        glm::vec2 uv_offset{ 0.0f, 0.0f };
+        glm::vec2 uv_scale{ 1.0f, 1.0f };
+    };
 
     // loaded assets
     std::shared_ptr<ShaderProgram> shader_;
-    std::shared_ptr<Mesh> mesh_;
-    std::shared_ptr<Texture> texture_;
+    std::vector<SceneObject> scene_objects_;
 
     // FPS / title update
     double fps_last_t_{ 0.0 };
