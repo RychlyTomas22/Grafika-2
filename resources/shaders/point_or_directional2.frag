@@ -35,6 +35,9 @@ uniform vec3 diffuse_material;
 uniform vec3 specular_material;
 uniform float specular_shinines;
 
+uniform vec2 uv_offset = vec2(0.0, 0.0);
+uniform vec2 uv_scale = vec2(1.0, 1.0);
+
 // Texture
 uniform sampler2D tex0;
 
@@ -66,7 +69,8 @@ vec3 evalPointLight(vec3 N, vec3 Lraw, vec3 V, vec3 tex,
 void main(void) {
     vec3 N = normalize(fs_in.N);
     vec3 V = normalize(fs_in.V);
-    vec3 tex = texture(tex0, fs_in.texCoord).rgb;
+    vec2 atlas_uv = fs_in.texCoord * uv_scale + uv_offset;
+    vec3 tex = texture(tex0, atlas_uv).rgb;
 
     vec3 color = vec3(0.0);
 

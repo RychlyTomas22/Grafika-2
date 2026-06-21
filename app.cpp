@@ -33,6 +33,7 @@
 #include <imgui_impl_opengl3.h>  // OpenGL bindings
 #include <nlohmann/json.hpp>
 #include <fstream>
+#include <cmath>
 
 #include "app.hpp"
 #include "gl_err_callback.h"
@@ -277,31 +278,143 @@ void App::init_assets(void) {
     std::filesystem::path fs = "resources/shaders/point_or_directional2.frag";
 
     if (!std::filesystem::exists(vs) || !std::filesystem::exists(fs)) {
-        throw std::runtime_error("Shader files missing. Expected: resources/shaders/simple.vert + simple.frag. "
-                                 "Set working directory to project root or copy resources next to executable.");
-    }
-    shader_ = std::make_shared<ShaderProgram>(vs, fs);
-
-    //
-    // load triangle vertex data from .OBJ and create VAO/VBO/EBO using DSA
-    //
-    std::filesystem::path obj = "resources/models/cube_triangles_vnt.obj";
-    if (!std::filesystem::exists(obj)) {
-        throw std::runtime_error("OBJ file missing. Expected: resources/models/triangle.obj. "
-                                 "Set working directory to project root or copy resources next to executable.");
+        throw std::runtime_error(
+            "Shader files missing. Expected resources/shaders/point2.vert and point_or_directional2.frag. "
+            "Set working directory to project root."
+        );
     }
 
-    std::vector<Vertex> vertices;
-    std::vector<GLuint> indices;
-    if (!loadOBJ(obj, vertices, indices)) {
-        throw std::runtime_error("OBJ loading failed: " + obj.string());
-    }
+   shader_ = std::make_shared<ShaderProgram>(vs, fs);
 
-    // Use also EBO (indirect vertex addressing)
-    mesh_ = std::make_shared<Mesh>(vertices, indices, GL_TRIANGLES);
+    auto load_mesh = [](const std::filesystem::path& path) -> std::shared_ptr<Mesh> {
+        if (!std::filesystem::exists(path)) {
+            throw std::runtime_error("OBJ file missing: " + path.string());
+        }
 
-    std::shared_ptr<Texture> tex = std::make_shared<Texture>("resources/textures/box_rgb888.png");
-    texture_ = tex;
+        std::vector<Vertex> vertices;
+        std::vector<GLuint> indices;
+
+        if (!loadOBJ(path, vertices, indices)) {
+            throw std::runtime_error("OBJ loading failed: " + path.string());
+        }
+
+        return std::make_shared<Mesh>(vertices, indices, GL_TRIANGLES);
+    };
+
+    auto load_texture = [](const std::filesystem::path& path) -> std::shared_ptr<Texture> {
+        if (!std::filesystem::exists(path)) {
+            throw std::runtime_error("Texture file missing: " + path.string());
+        }
+
+        return std::make_shared<Texture>(path);
+    };
+
+    auto cube_mesh   = load_mesh("resources/models/cube_triangles_vnt.obj");
+    auto teapot_mesh   = load_mesh("resources/models/teapot_tri_vnt.obj");
+    auto bunny_mesh   = load_mesh("resources/models/bunny_tri_vnt.obj");
+
+    auto texture_atlas = load_texture("resources/textures/tex_2048.png");
+    auto onyx = load_texture("resources/textures/Onyx010_1K-JPG_Color.jpg");
+
+
+    // Atlas helper.
+    // x, y coordinates in atlas.
+    // x = column from left
+    // y = row from top
+    const float atlas_cols = 16.0f;
+    const float atlas_rows = 16.0f;
+
+    const glm::vec2 tile_scale{
+        1.0f / atlas_cols,
+        1.0f / atlas_rows
+    };
+
+    auto tile_offset = [](int x, int y) -> glm::vec2 {
+        const float cols = 16.0f;
+        const float rows = 16.0f;
+
+        return glm::vec2{
+            static_cast<float>(x) / cols,
+            1.0f - (static_cast<float>(y) + 1.0f) / rows
+        };
+    };
+
+    scene_objects_.clear();
+
+    // Atlas cube 1: tile from atlas
+    scene_objects_.push_back(SceneObject{
+        cube_mesh,
+        texture_atlas,
+        glm::vec3(-2.2f, 0.0f, 0.0f),
+        glm::vec3(0.55f, 0.55f, 0.55f),
+        glm::vec3(0.0f, 1.0f, 0.0f),
+        1.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        tile_offset(0, 0),
+        tile_scale
+    });
+
+    // Atlas cube 2: different tile from atlas
+    scene_objects_.push_back(SceneObject{
+        cube_mesh,
+        texture_atlas,
+        glm::vec3(-0.8f, 0.0f, 0.0f),
+        glm::vec3(0.55f, 0.55f, 0.55f),
+        glm::vec3(1.0f, 0.0f, 0.0f),
+        -0.8f,
+        0.25f,
+        2.0f,
+        0.0f,
+        tile_offset(1, 0),
+        tile_scale
+    });
+
+    // Atlas cube 3: different tile from atlas
+    scene_objects_.push_back(SceneObject{
+        cube_mesh,
+        texture_atlas,
+        glm::vec3(0.6f, 0.0f, 0.0f),
+        glm::vec3(0.55f, 0.55f, 0.55f),
+        glm::vec3(0.0f, 1.0f, 1.0f),
+        0.6f,
+        0.15f,
+        1.4f,
+        1.5f,
+        tile_offset(2, 0),
+        tile_scale
+    });
+
+    // Sphere: different model loaded from file
+    scene_objects_.push_back(SceneObject{
+        bunny_mesh,
+        onyx,
+        glm::vec3(5.0f, 0.0f, 0.0f),
+        glm::vec3(0.55f, 0.55f, 0.55f),
+        glm::vec3(1.0f, 0.0f, 0.0f),
+        -0.6f,
+        0.4f,
+        2.0f,
+        0.0f,
+        glm::vec2(0.0f, 0.0f),
+        glm::vec2(1.0f, 1.0f)
+    });
+
+    // Teapot: another different model loaded from file
+    scene_objects_.push_back(SceneObject{
+        teapot_mesh,
+        onyx,
+        glm::vec3(0.0f, -3.0f, -1.8f),
+        glm::vec3(0.25f, 0.25f, 0.25f),
+        glm::vec3(0.0f, 1.0f, 0.0f),
+        0.7f,
+        0.2f,
+        1.4f,
+        1.5f,
+        glm::vec2(0.0f, 0.0f),
+        glm::vec2(1.0f, 1.0f)
+    });
 }
 
 void App::init_imgui()
@@ -336,8 +449,8 @@ int App::run()
         fps_frames_ = 0;
         fps_value_ = 0.0;
 
-        if (!shader_ || !mesh_) {
-            throw std::runtime_error("Assets not initialized (shader_/mesh_ is null).");
+        if (!shader_ || scene_objects_.empty()) {
+            throw std::runtime_error("Assets not initialized (shader_ or scene_objects_ missing).");
         }
 
         while (!glfwWindowShouldClose(window)) {
@@ -434,12 +547,8 @@ int App::run()
 
             // Fragment shader expects: uniform vec4 ucolor;
 
-            glm::mat4 m_m(1.0f);
             shader_->use();
-            texture_->bind();
             shader_->setUniform("tex0", 0);
-            //shader_->setUniform("ucolor", col);
-            shader_->setUniform("uM_m", m_m);
             shader_->setUniform("uV_m", view);
             shader_->setUniform("uP_m", proj_);
 
@@ -523,7 +632,33 @@ int App::run()
             shader_->setUniform("spot_cutoff_cos", spot_cutoff_cos);
             shader_->setUniform("spot_exponent", spot_light_.exponent);
 
-            mesh_->draw();
+            for (const auto& object : scene_objects_) {
+                glm::mat4 model(1.0f);
+
+                const float vertical_offset =
+                    object.vertical_amplitude * std::sin(tf * object.vertical_speed + object.vertical_phase);
+
+                model = glm::translate(
+                    model,
+                    object.position + glm::vec3(0.0f, vertical_offset, 0.0f)
+                );
+
+                model = glm::rotate(
+                    model,
+                    tf * object.rotation_speed,
+                    object.rotation_axis
+                );
+
+                model = glm::scale(model, object.scale);
+
+                object.texture->bind();
+
+                shader_->setUniform("uM_m", model);
+                shader_->setUniform("uv_offset", object.uv_offset);
+                shader_->setUniform("uv_scale", object.uv_scale);
+
+                object.mesh->draw();
+            }
 
             // render ImGui on top
             if (show_imgui && imgui_inited_) {
@@ -704,7 +839,7 @@ void App::on_scroll(double /*xoffset*/, double /*yoffset*/)
 
 App::~App()
 {
-    mesh_.reset();
+    scene_objects_.clear();
     shader_.reset();
 
     if (imgui_inited_) {

@@ -59,7 +59,12 @@ GLint ShaderProgram::getAttribLocation(const std::string & name) {
         return loc;
     }
     return loc;
-} // added bracket
+}
+
+void ShaderProgram::setUniform(const std::string& name, const glm::vec2& val) {
+    auto loc = getUniformLocation(name);
+    glProgramUniform2fv(ID, loc, 1, glm::value_ptr(val));
+}
 
 // Uniform setting
 

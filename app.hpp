@@ -84,9 +84,26 @@ private:
     int msaa_samples_{ 4 };
 
     // loaded assets
+    struct SceneObject {
+        std::shared_ptr<Mesh> mesh;
+        std::shared_ptr<Texture> texture;
+
+        glm::vec3 position{ 0.0f, 0.0f, 0.0f };
+        glm::vec3 scale{ 1.0f, 1.0f, 1.0f };
+        glm::vec3 rotation_axis{ 0.0f, 1.0f, 0.0f };
+
+        float rotation_speed{ 0.0f };
+        float vertical_amplitude{ 0.0f };
+        float vertical_speed{ 0.0f };
+        float vertical_phase{ 0.0f };
+
+        glm::vec2 uv_offset{ 0.0f, 0.0f };
+        glm::vec2 uv_scale{ 1.0f, 1.0f };
+    };
+
+    // loaded assets
     std::shared_ptr<ShaderProgram> shader_;
-    std::shared_ptr<Mesh> mesh_;
-    std::shared_ptr<Texture> texture_;
+    std::vector<SceneObject> scene_objects_;
 
     // FPS / title update
     double fps_last_t_{ 0.0 };

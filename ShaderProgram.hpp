@@ -36,6 +36,8 @@ public:
         }
     };
 
+    void setUniform(const std::string& name, const glm::vec2& val);
+
     // deactivate current shader program (i.e. activate shader no. 0)
     void deactivate(void) {
         glUseProgram(0);
