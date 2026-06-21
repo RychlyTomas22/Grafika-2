@@ -166,6 +166,10 @@ GLuint ShaderProgram::link_shader(const std::vector<GLuint> shader_ids) {
     glBindAttribLocation(prog_ID, Mesh::attribute_location_position, "aPos");
     glBindAttribLocation(prog_ID, Mesh::attribute_location_normal, "aNorm");
     glBindAttribLocation(prog_ID, Mesh::attribute_location_texture_coords, "aTex");
+
+    glBindAttribLocation(prog_ID, Mesh::attribute_location_position, "aPosition");
+    glBindAttribLocation(prog_ID, Mesh::attribute_location_normal, "aNormal");
+    glBindAttribLocation(prog_ID, Mesh::attribute_location_texture_coords, "aTexCoord");
 #endif
 
     glLinkProgram(prog_ID);

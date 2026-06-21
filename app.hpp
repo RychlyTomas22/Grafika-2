@@ -103,4 +103,64 @@ private:
     float yaw_deg_{-90.0f};
     float pitch_deg_{0.0f};
     float mouse_sensitivity_{0.12f};
+
+    struct DirectionalLight {
+        glm::vec3 direction{ -0.5f, -1.0f, -0.3f };
+        glm::vec3 ambient{ 0.2f, 0.2f, 0.2f };
+        glm::vec3 diffuse{ 0.8f, 0.8f, 0.8f };
+        glm::vec3 specular{ 1.0f, 1.0f, 1.0f };
+    };
+
+    DirectionalLight sun_{};
+
+    struct PointLight {
+        glm::vec3 base_position{ 2.0f, 1.0f, 0.0f };
+        glm::vec3 ambient{ 0.05f, 0.05f, 0.05f };
+        glm::vec3 diffuse{ 1.0f, 1.0f, 1.0f };
+        glm::vec3 specular{ 1.0f, 1.0f, 1.0f };
+        float constant{ 1.0f };
+        float linear{ 0.09f };
+        float quadratic{ 0.032f };
+    };
+
+    struct SpotLight {
+        glm::vec3 diffuse{ 0.8f, 0.8f, 0.8f };
+        glm::vec3 specular{ 1.0f, 1.0f, 1.0f };
+
+        float cutoff_deg{ 20.0f };
+        float exponent{ 16.0f };
+    };
+
+    SpotLight spot_light_{};
+
+    glm::vec3 material_ambient_{ 0.05f, 0.05f, 0.05f };
+    glm::vec3 material_diffuse_{ 1.0f, 1.0f, 1.0f };
+    glm::vec3 material_specular_{ 1.0f, 1.0f, 1.0f };
+    float material_shininess_{ 32.0f };
+
+    PointLight point_light_{
+        glm::vec3( 2.5f,  0.8f,  0.0f),
+        glm::vec3(0.05f, 0.05f, 0.05f),
+        glm::vec3(1.00f, 1.00f, 1.00f),
+        glm::vec3(1.00f, 1.00f, 1.00f),
+        1.0f, 0.09f, 0.032f
+    };
+
+    PointLight point_light1_{
+        glm::vec3(-3.0f, -0.3f,  0.0f),
+        glm::vec3(0.00f, 0.03f, 0.00f),
+        glm::vec3(0.30f, 1.00f, 0.30f),
+        glm::vec3(0.30f, 1.00f, 0.30f),
+        1.0f, 0.09f, 0.032f
+    };
+
+    PointLight point_light2_{
+        glm::vec3( 1.8f,  1.6f,  0.0f),
+        glm::vec3(0.00f, 0.00f, 0.03f),
+        glm::vec3(0.30f, 0.30f, 1.00f),
+        glm::vec3(0.30f, 0.30f, 1.00f),
+        1.0f, 0.09f, 0.032f
+    };
+
+
 };
