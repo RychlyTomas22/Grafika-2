@@ -45,6 +45,8 @@ private:
     bool vsync_on_ = true;
     bool show_imgui{true};
 
+    void load_config_();
+
     // Task 1.2: mouse cursor capture / release
     bool cursor_captured_{false};
     bool esc_primed_to_quit_{false};
@@ -74,7 +76,12 @@ private:
     double cursor_y_{ 0.0 };
 
     std::mt19937 rng_{ std::random_device{}() };
+
+    // Window config
     std::string base_title_{ "OpenGL context" };
+    int window_width_{ 800 };
+    int window_height_{ 600 };
+    int msaa_samples_{ 4 };
 
     // loaded assets
     std::shared_ptr<ShaderProgram> shader_;

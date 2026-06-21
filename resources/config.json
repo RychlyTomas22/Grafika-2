@@ -1,0 +1,18 @@
+{
+  "window": {
+    "width": 1280,
+    "height": 720,
+    "title": "PG2 APP",
+    "vsync": true,
+    "msaa_samples": 4
+  },
+  "camera": {
+    "speed": 3.0,
+    "fov_deg": 60.0,
+    "znear": 0.1,
+    "zfar": 100.0
+  },
+  "rendering": {
+    "clear_color": [0.08, 0.10, 0.14, 1.0]
+  }
+}

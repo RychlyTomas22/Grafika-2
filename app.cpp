@@ -31,6 +31,8 @@
 #include <imgui.h>               // main ImGUI header
 #include <imgui_impl_glfw.h>     // GLFW bindings
 #include <imgui_impl_opengl3.h>  // OpenGL bindings
+#include <nlohmann/json.hpp>
+#include <fstream>
 
 #include "app.hpp"
 #include "gl_err_callback.h"
@@ -101,10 +103,80 @@ static glm::mat4 make_perspective(float fov_deg, float aspect, float znear, floa
     return glm::perspective(glm::radians(fov_deg), aspect, znear, zfar);
 }
 
+static glm::vec4 json_vec4_or_default(
+    const nlohmann::json& j,
+    const std::string& key,
+    glm::vec4 fallback
+)
+{
+    if (!j.contains(key) || !j.at(key).is_array() || j.at(key).size() != 4) {
+        return fallback;
+    }
+
+    return glm::vec4(
+        j.at(key).at(0).get<float>(),
+        j.at(key).at(1).get<float>(),
+        j.at(key).at(2).get<float>(),
+        j.at(key).at(3).get<float>()
+    );
+}
+
+void App::load_config_()
+{
+    const std::filesystem::path config_path = "resources/config.json";
+
+    if (!std::filesystem::exists(config_path)) {
+        std::cout << "Config file not found, using defaults: "
+                  << config_path.string() << "\n";
+        return;
+    }
+
+    std::ifstream file(config_path);
+    if (!file.is_open()) {
+        std::cout << "Cannot open config file, using defaults: "
+                  << config_path.string() << "\n";
+        return;
+    }
+
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+
+    nlohmann::json cfg = nlohmann::json::parse(buffer.str());
+
+    if (cfg.contains("window")) {
+        const auto& w = cfg.at("window");
+
+        window_width_ = w.value("width", window_width_);
+        window_height_ = w.value("height", window_height_);
+        vsync_on_ = w.value("vsync", vsync_on_);
+        msaa_samples_ = w.value("msaa_samples", msaa_samples_);
+
+        if (w.contains("title")) {
+            base_title_ = w.at("title").get<std::string>();
+        }
+    }
+
+    if (cfg.contains("camera")) {
+        const auto& c = cfg.at("camera");
+
+        cam_speed_ = c.value("speed", cam_speed_);
+        fov_deg_ = c.value("fov_deg", fov_deg_);
+        znear_ = c.value("znear", znear_);
+        zfar_ = c.value("zfar", zfar_);
+    }
+
+    if (cfg.contains("rendering")) {
+        const auto& r = cfg.at("rendering");
+        clear_color_ = json_vec4_or_default(r, "clear_color", clear_color_);
+    }
+
+    std::cout << "Config loaded from: " << config_path.string() << "\n";
+}
+
 bool App::init() {
 
+    load_config_();
     // GL init
-
     {
 
         if (!glfwInit()) {
@@ -119,17 +191,24 @@ bool App::init() {
         // hide window during initialization
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         // antialiasing
-        glfwWindowHint(GLFW_SAMPLES, 4);
+        glfwWindowHint(GLFW_SAMPLES, msaa_samples_);
 
-        window = glfwCreateWindow(800, 600, "OpenGL context", nullptr, nullptr);
 
-        glfwSwapInterval(vsync_on_ ? 1 : 0);
+        window = glfwCreateWindow(
+     window_width_,
+     window_height_,
+     base_title_.c_str(),
+     nullptr,
+     nullptr
+ );
 
         if (!window)
         {
-            throw std::runtime_error("GLFW not initialized properly!");
+            throw std::runtime_error("GLFW window not created properly!");
         }
+
         glfwMakeContextCurrent(window);
+        glfwSwapInterval(vsync_on_ ? 1 : 0);
         glfwSetWindowUserPointer(window, this);
         glfwcbRegisterAll(window);
 
