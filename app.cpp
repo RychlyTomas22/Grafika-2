@@ -122,13 +122,14 @@ bool App::init() {
         glfwWindowHint(GLFW_SAMPLES, 4);
 
         window = glfwCreateWindow(800, 600, "OpenGL context", nullptr, nullptr);
-        glfwMakeContextCurrent(window);
+
         glfwSwapInterval(vsync_on_ ? 1 : 0);
 
         if (!window)
         {
             throw std::runtime_error("GLFW not initialized properly!");
         }
+        glfwMakeContextCurrent(window);
         glfwSetWindowUserPointer(window, this);
         glfwcbRegisterAll(window);
 
@@ -193,8 +194,8 @@ void App::init_assets(void) {
     //
     // load shaders from files (.vert/.frag)
     //
-    std::filesystem::path vs = "resources/shaders/point.vert";
-    std::filesystem::path fs = "resources/shaders/point_or_directional.frag";
+    std::filesystem::path vs = "resources/shaders/point2.vert";
+    std::filesystem::path fs = "resources/shaders/point_or_directional2.frag";
 
     if (!std::filesystem::exists(vs) || !std::filesystem::exists(fs)) {
         throw std::runtime_error("Shader files missing. Expected: resources/shaders/simple.vert + simple.frag. "
@@ -355,21 +356,6 @@ int App::run()
             // Fragment shader expects: uniform vec4 ucolor;
 
             glm::mat4 m_m(1.0f);
-            //m_m = glm::rotate(m_m, static_cast<float>(t), glm::vec3(0.0f, 1.0f, 0.0f));
-
-            const float light_radius = 1.0f;
-            const float light_height = 0.0f;
-            const float light_speed = 0.2f;
-
-            glm::vec3 light_world;
-            light_world.x = std::cos(light_speed * static_cast<float>(t)) * light_radius;
-            light_world.y = light_height;
-            light_world.z = std::sin(light_speed * static_cast<float>(t)) * light_radius;
-
-            // převod do VIEW space, protože point.vert očekává light_position ve view space
-            glm::vec3 light_view =
-                glm::vec3(view * glm::vec4(light_world, 1.0f));
-
             shader_->use();
             texture_->bind();
             shader_->setUniform("tex0", 0);
@@ -378,28 +364,86 @@ int App::run()
             shader_->setUniform("uV_m", view);
             shader_->setUniform("uP_m", proj_);
 
-            //shader_->setUniform("light_position", glm::normalize(-sun_.direction));
+            const float tf = static_cast<float>(t);
 
-            //shader_->setUniform("light_direction", glm::normalize(sun_.direction));
-            shader_->setUniform("light_position", light_view);
-            /*
-            shader_->setUniform("ambient_intensity", sun_.ambient);
-            shader_->setUniform("diffuse_intensity", sun_.diffuse);
-            shader_->setUniform("specular_intensity", sun_.specular);
-            */
-            shader_->setUniform("ambient_intensity", point_light_.ambient);
-            shader_->setUniform("diffuse_intensity", point_light_.diffuse);
-            shader_->setUniform("specular_intensity", point_light_.specular);
+            // light 0
+            glm::mat4 light_m0(1.0f);
+            light_m0 = glm::rotate(light_m0, tf * 1.0f, glm::vec3(0.0f, 1.0f, 0.0f));
 
+            glm::vec3 light_world0 =
+                glm::vec3(light_m0 * glm::vec4(point_light_.base_position, 1.0f));
+
+            // light 1
+            glm::mat4 light_m1(1.0f);
+            light_m1 = glm::rotate(light_m1, -tf * 0.7f, glm::vec3(0.0f, 1.0f, 0.0f));
+
+            glm::vec3 light_world1 =
+                glm::vec3(light_m1 * glm::vec4(point_light1_.base_position, 1.0f));
+
+            // light 2
+            glm::mat4 light_m2(1.0f);
+            light_m2 = glm::rotate(light_m2, tf * 1.3f, glm::vec3(1.0f, 0.0f, 0.0f));
+
+            glm::vec3 light_world2 =
+                glm::vec3(light_m2 * glm::vec4(point_light2_.base_position, 1.0f));
+
+            // transfer to VIEW space
+            glm::vec3 light_view0 = glm::vec3(view * glm::vec4(light_world0, 1.0f));
+            glm::vec3 light_view1 = glm::vec3(view * glm::vec4(light_world1, 1.0f));
+            glm::vec3 light_view2 = glm::vec3(view * glm::vec4(light_world2, 1.0f));
+
+            // directional light
+            glm::vec3 sun_world_dir = glm::normalize(glm::vec3(
+                std::cos(tf * 0.25f),
+                -0.7f,
+                std::sin(tf * 0.25f)
+            ));
+
+            // direction has w = 0.0 because it is direction, not position
+            glm::vec3 sun_view_dir =
+                glm::normalize(glm::vec3(view * glm::vec4(sun_world_dir, 0.0f)));
+
+            shader_->setUniform("sun_direction", sun_view_dir);
+            shader_->setUniform("sun_ambient_intensity", sun_.ambient);
+            shader_->setUniform("sun_diffuse_intensity", sun_.diffuse);
+            shader_->setUniform("sun_specular_intensity", sun_.specular);
+
+
+
+            shader_->setUniform("light_position0", light_view0);
+            shader_->setUniform("light_position1", light_view1);
+            shader_->setUniform("light_position2", light_view2);
+
+            // light 0
+            shader_->setUniform("ambient_intensity0", point_light_.ambient);
+            shader_->setUniform("diffuse_intensity0", point_light_.diffuse);
+            shader_->setUniform("specular_intensity0", point_light_.specular);
+
+            // light 1
+            shader_->setUniform("ambient_intensity1", point_light1_.ambient);
+            shader_->setUniform("diffuse_intensity1", point_light1_.diffuse);
+            shader_->setUniform("specular_intensity1", point_light1_.specular);
+
+            // light 2
+            shader_->setUniform("ambient_intensity2", point_light2_.ambient);
+            shader_->setUniform("diffuse_intensity2", point_light2_.diffuse);
+            shader_->setUniform("specular_intensity2", point_light2_.specular);
+
+            // materiál
             shader_->setUniform("ambient_material", material_ambient_);
             shader_->setUniform("diffuse_material", material_diffuse_);
             shader_->setUniform("specular_material", material_specular_);
             shader_->setUniform("specular_shinines", material_shininess_);
-            /*
-            shader_->setUniform("light_constant", point_light_.constant);
-            shader_->setUniform("light_linear", point_light_.linear);
-            shader_->setUniform("light_quadratic", point_light_.quadratic);
-            */
+
+            // spotlight / camera headlight
+            const float spot_cutoff_cos =
+                static_cast<float>(std::cos(glm::radians(spot_light_.cutoff_deg)));
+
+            shader_->setUniform("spot_diffuse_intensity", spot_light_.diffuse);
+            shader_->setUniform("spot_specular_intensity", spot_light_.specular);
+            shader_->setUniform("spot_cutoff_cos", spot_cutoff_cos);
+            shader_->setUniform("spot_exponent", spot_light_.exponent);
+
             mesh_->draw();
 
             // render ImGui on top

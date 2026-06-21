@@ -123,12 +123,44 @@ private:
         float quadratic{ 0.032f };
     };
 
-    PointLight point_light_{};
+    struct SpotLight {
+        glm::vec3 diffuse{ 0.8f, 0.8f, 0.8f };
+        glm::vec3 specular{ 1.0f, 1.0f, 1.0f };
 
-    glm::vec3 material_ambient_{ 0.05f, 0.05f, 0.05f };;
+        float cutoff_deg{ 20.0f };
+        float exponent{ 16.0f };
+    };
+
+    SpotLight spot_light_{};
+
+    glm::vec3 material_ambient_{ 0.05f, 0.05f, 0.05f };
     glm::vec3 material_diffuse_{ 1.0f, 1.0f, 1.0f };
     glm::vec3 material_specular_{ 1.0f, 1.0f, 1.0f };
     float material_shininess_{ 32.0f };
+
+    PointLight point_light_{
+        glm::vec3( 2.5f,  0.8f,  0.0f),
+        glm::vec3(0.05f, 0.05f, 0.05f),
+        glm::vec3(1.00f, 1.00f, 1.00f),
+        glm::vec3(1.00f, 1.00f, 1.00f),
+        1.0f, 0.09f, 0.032f
+    };
+
+    PointLight point_light1_{
+        glm::vec3(-3.0f, -0.3f,  0.0f),
+        glm::vec3(0.00f, 0.03f, 0.00f),
+        glm::vec3(0.30f, 1.00f, 0.30f),
+        glm::vec3(0.30f, 1.00f, 0.30f),
+        1.0f, 0.09f, 0.032f
+    };
+
+    PointLight point_light2_{
+        glm::vec3( 1.8f,  1.6f,  0.0f),
+        glm::vec3(0.00f, 0.00f, 0.03f),
+        glm::vec3(0.30f, 0.30f, 1.00f),
+        glm::vec3(0.30f, 0.30f, 1.00f),
+        1.0f, 0.09f, 0.032f
+    };
 
 
 };
