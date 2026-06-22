@@ -37,6 +37,16 @@ uniform float specular_shinines;
 
 uniform vec2 uv_offset = vec2(0.0, 0.0);
 uniform vec2 uv_scale = vec2(1.0, 1.0);
+uniform vec4 object_color = vec4(1.0, 1.0, 1.0, 1.0);
+
+// Custom shader: distance fog
+uniform int fog_enabled = 1;
+uniform vec3 fog_color = vec3(0.08, 0.08, 0.10);
+uniform float fog_near = 3.0;
+uniform float fog_far = 12.0;
+
+// Explicit global ambient light
+uniform vec3 global_ambient_intensity = vec3(0.04, 0.04, 0.04);
 
 // Texture
 uniform sampler2D tex0;
@@ -70,9 +80,15 @@ void main(void) {
     vec3 N = normalize(fs_in.N);
     vec3 V = normalize(fs_in.V);
     vec2 atlas_uv = fs_in.texCoord * uv_scale + uv_offset;
-    vec3 tex = texture(tex0, atlas_uv).rgb;
+    vec4 tex_sample = texture(tex0, atlas_uv);
+
+    vec3 tex = tex_sample.rgb * object_color.rgb;
+    float alpha = tex_sample.a * object_color.a;
 
     vec3 color = vec3(0.0);
+
+    // Explicit ambient light contribution
+    color += global_ambient_intensity * ambient_material * tex;
 
     // Directional light / sun
     vec3 sun_L = normalize(-sun_direction);
@@ -138,5 +154,19 @@ void main(void) {
         color += spot_factor * (spot_diffuse * tex + spot_specular);
     }
 
-    FragColor = vec4(color, 1.0);
+    // distance fog.
+    // fs_in.V = vector from fragment to camera (distance)
+    if (fog_enabled == 1) {
+        float distance_to_camera = length(fs_in.V);
+
+        float fog_factor = clamp(
+            (fog_far - distance_to_camera) / (fog_far - fog_near),
+            0.0,
+            1.0
+        );
+
+        color = mix(fog_color, color, fog_factor);
+    }
+
+    FragColor = vec4(color, alpha);
 }

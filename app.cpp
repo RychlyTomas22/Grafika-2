@@ -3,7 +3,7 @@
 // include anywhere, in any order
 #include <iostream>
 #include <chrono>
-#include <stack>
+
 #include <random>
 #include <sstream>
 #include <iomanip>
@@ -22,8 +22,6 @@
 
 // OpenGL math (and other additional GL libraries, at the end)
 #include <glm/glm.hpp>
-#include <glm/gtc/type_ptr.hpp>
-
 #include "gl_err_callback.h"
 
 #include "assets.hpp"
@@ -31,12 +29,14 @@
 #include <imgui.h>               // main ImGUI header
 #include <imgui_impl_glfw.h>     // GLFW bindings
 #include <imgui_impl_opengl3.h>  // OpenGL bindings
-#include <nlohmann/json.hpp>
 #include <fstream>
 #include <cmath>
+#include <algorithm>
+
+#define JSON_HAS_CPP_20 0
+#include <nlohmann/json.hpp>
 
 #include "app.hpp"
-#include "gl_err_callback.h"
 #include "gl_utils.h"
 #include "glfw_callbacks.h"
 
@@ -139,10 +139,15 @@ void App::load_config_()
         return;
     }
 
-    std::stringstream buffer;
-    buffer << file.rdbuf();
+    nlohmann::json cfg;
 
-    nlohmann::json cfg = nlohmann::json::parse(buffer.str());
+    try {
+        file >> cfg;
+    } catch (const nlohmann::json::parse_error& e) {
+        std::cerr << "Invalid config JSON, using defaults: "
+                  << e.what() << "\n";
+        return;
+    }
 
     if (cfg.contains("window")) {
         const auto& w = cfg.at("window");
@@ -233,6 +238,9 @@ bool App::init() {
         }
 
         glEnable(GL_MULTISAMPLE);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthFunc(GL_LEQUAL);
 
         (void)glGetError();
 
@@ -312,6 +320,7 @@ void App::init_assets(void) {
     auto cube_mesh   = load_mesh("resources/models/cube_triangles_vnt.obj");
     auto teapot_mesh   = load_mesh("resources/models/teapot_tri_vnt.obj");
     auto bunny_mesh   = load_mesh("resources/models/bunny_tri_vnt.obj");
+    auto plane_mesh   = load_mesh("resources/models/plane_tri_vnt.obj");
 
     auto texture_atlas = load_texture("resources/textures/tex_2048.png");
     auto onyx = load_texture("resources/textures/Onyx010_1K-JPG_Color.jpg");
@@ -444,32 +453,53 @@ scene_objects_.push_back(SceneObject{
     true
 });
 
-// Teapot
+
+
+    // Transparent cube 1
 scene_objects_.push_back(SceneObject{
-    teapot_mesh,
-    onyx,
+        cube_mesh,
+        texture_atlas,
 
-    glm::vec3(0.0f, -0.5f, -5.0f),
-    glm::vec3(0.25f, 0.25f, 0.25f),
+        glm::vec3(-1.5f, 0.4f, -2.2f),
+        glm::vec3(0.75f, 0.75f, 0.75f),
 
-    glm::vec3(0.0f, 1.0f, 0.0f),
-    0.2f,
+        glm::vec3(0.0f, 1.0f, 0.0f),
+        0.25f,
 
-    {
-        PositionAnimation{
-            glm::vec3(0.0f, -0.20f, 0.0f),
-            glm::vec3(0.0f,  0.20f, 0.0f),
-            1.4f,
-            1.5f
-        }
-    },
+        {},
 
-    glm::vec2(0.0f, 0.0f),
-    glm::vec2(1.0f, 1.0f),
+        tile_offset(6, 0),
+        tile_scale,
 
-    6.0f,
-    true
-});
+        1.0f,
+        false,
+
+        glm::vec4(0.4f, 0.9f, 1.0f, 0.35f),
+        true
+    });
+
+    // Transparent plane
+scene_objects_.push_back(SceneObject{
+        plane_mesh,
+        texture_atlas,
+
+        glm::vec3(0.0f, -4.0f, -2.5f),
+        glm::vec3(3.0f, 1.0f, 3.0f),
+
+        glm::vec3(0.0f, 1.0f, 0.0f),
+        0.0f,
+
+        {},
+
+        tile_offset(3, 4),
+        tile_scale,
+
+        1.0f,
+        false,
+
+        glm::vec4(0.5f, 0.8f, 1.0f, 0.30f),
+        true
+    });
 }
 
 void App::init_imgui()
@@ -722,7 +752,11 @@ int App::run()
                 ImGui::Text("MSAA: %s", msaa_enabled ? "ON" : "OFF");
                 ImGui::Text("Sample buffers: %d", sample_buffers);
                 ImGui::Text("Samples: %d", samples);
+                ImGui::Separator();
 
+                ImGui::Checkbox("Fog shader effect", &fog_enabled_);
+                ImGui::SliderFloat("Fog near", &fog_near_, 0.1f, 20.0f);
+                ImGui::SliderFloat("Fog far", &fog_far_, 1.0f, 40.0f);
                 ImGui::Separator();
 
                 ImGui::Checkbox("Show ImGui (F1)", &show_imgui);
@@ -844,7 +878,15 @@ int App::run()
             shader_->setUniform("spot_cutoff_cos", spot_cutoff_cos);
             shader_->setUniform("spot_exponent", spot_light_.exponent);
 
-            for (const auto& object : scene_objects_) {
+            // fog
+            shader_->setUniform("global_ambient_intensity", glm::vec3(0.04f, 0.04f, 0.04f));
+
+            shader_->setUniform("fog_enabled", fog_enabled_ ? 1 : 0);
+            shader_->setUniform("fog_color", fog_color_);
+            shader_->setUniform("fog_near", fog_near_);
+            shader_->setUniform("fog_far", fog_far_);
+
+            auto draw_object = [&](const SceneObject& object) {
                 glm::mat4 model(1.0f);
 
                 const glm::vec3 object_world_position = get_object_position_(object, tf);
@@ -864,9 +906,59 @@ int App::run()
                 shader_->setUniform("uM_m", model);
                 shader_->setUniform("uv_offset", object.uv_offset);
                 shader_->setUniform("uv_scale", object.uv_scale);
+                shader_->setUniform("object_color", object.color);
 
                 object.mesh->draw();
+            };
+
+            std::vector<std::size_t> transparent_indices;
+            transparent_indices.reserve(scene_objects_.size());
+
+            // Draw opaque objects
+            glDepthMask(GL_TRUE);
+
+            for (std::size_t i = 0; i < scene_objects_.size(); ++i) {
+                const SceneObject& object = scene_objects_[i];
+
+                if (object.transparent || object.color.a < 1.0f) {
+                    transparent_indices.push_back(i);
+                } else {
+                    draw_object(object);
+                }
             }
+
+            // Sort transparent objects from far to near.
+            std::sort(
+                transparent_indices.begin(),
+                transparent_indices.end(),
+                [&](std::size_t ia, std::size_t ib) {
+                    const SceneObject& a = scene_objects_[ia];
+                    const SceneObject& b = scene_objects_[ib];
+
+                    const glm::vec3 a_pos = get_object_position_(a, tf);
+                    const glm::vec3 b_pos = get_object_position_(b, tf);
+
+                    const glm::vec3 da = a_pos - cam_pos_;
+                    const glm::vec3 db = b_pos - cam_pos_;
+
+                    const float dist_a2 = glm::dot(da, da);
+                    const float dist_b2 = glm::dot(db, db);
+
+                    return dist_a2 > dist_b2;
+                }
+            );
+
+
+            // Depth test stays ON, but transparent objects are not written into depth buffer.
+            glDepthMask(GL_FALSE);
+
+            for (std::size_t index : transparent_indices) {
+                draw_object(scene_objects_[index]);
+            }
+
+            glDepthMask(GL_TRUE);
+
+            glDepthMask(GL_TRUE);
 
             // render ImGui on top
             if (show_imgui && imgui_inited_) {

@@ -109,6 +109,9 @@ private:
 
         float collision_radius{ 1.0f };
         bool collidable{ true };
+
+        glm::vec4 color{ 1.0f, 1.0f, 1.0f, 1.0f };
+        bool transparent{ false };
     };
 
     // Collisions
@@ -120,7 +123,6 @@ private:
     float map_max_y_{  15.0f };
     float map_min_z_{ -15.0f };
     float map_max_z_{  15.0f };
-
 
     bool collision_active_{ false };
 
@@ -134,7 +136,11 @@ private:
     void try_move_camera_(const glm::vec3& movement, float time);
     void push_camera_out_of_collisions_(float time);
 
-
+    // Custom shader effect: distance fog
+    bool fog_enabled_{ true };
+    glm::vec3 fog_color_{ 0.08f, 0.08f, 0.10f };
+    float fog_near_{ 11.0f };
+    float fog_far_{ 25.0f };
 
     // loaded assets
     std::shared_ptr<ShaderProgram> shader_;
