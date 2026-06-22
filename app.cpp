@@ -505,6 +505,7 @@ int App::run()
                 ImGui::Begin("HUD", nullptr, flags);
                 ImGui::Text("FPS: %.1f", fps_value_);
                 ImGui::Text("dt:  %.4f s", dt);
+                ImGui::Text("FOV: %.1f", fov_deg_);
                 ImGui::Separator();
 
                 ImGui::Text("MSAA: %s", msaa_enabled ? "ON" : "OFF");
@@ -833,8 +834,23 @@ void App::on_cursor_pos(double x, double y)
 
 
 
-void App::on_scroll(double /*xoffset*/, double /*yoffset*/)
+void App::on_scroll(double /*xoffset*/, double yoffset)
 {
+    // Mouse wheel changes field of view.
+    fov_deg_ -= static_cast<float>(yoffset) * 2.0f;
+
+    if (fov_deg_ < 25.0f) {
+        fov_deg_ = 25.0f;
+    }
+
+    if (fov_deg_ > 90.0f) {
+        fov_deg_ = 90.0f;
+    }
+
+    const float aspect =
+        static_cast<float>(fb_width_) / static_cast<float>(fb_height_);
+
+    proj_ = make_perspective(fov_deg_, aspect, znear_, zfar_);
 }
 
 App::~App()
