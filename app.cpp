@@ -805,8 +805,8 @@ int App::run()
                     trail_pos,
                     2,
                     0.45f,
-                    0.45f,
-                    glm::vec4(0.25f, 0.75f, 1.0f, 0.45f)
+                    0.7f,
+                    glm::vec4(0.25f, 0.75f, 1.0f, 0.70f)
                 );
 
                 last_trail_particle_time_ = t;
