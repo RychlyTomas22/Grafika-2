@@ -83,6 +83,14 @@ private:
     int window_height_{ 600 };
     int msaa_samples_{ 4 };
 
+    struct PositionAnimation {
+        glm::vec3 from_offset{ 0.0f, 0.0f, 0.0f };
+        glm::vec3 to_offset{ 0.0f, 0.0f, 0.0f };
+
+        float speed{ 1.0f };
+        float phase{ 0.0f };
+    };
+
     // loaded assets
     struct SceneObject {
         std::shared_ptr<Mesh> mesh;
@@ -90,16 +98,43 @@ private:
 
         glm::vec3 position{ 0.0f, 0.0f, 0.0f };
         glm::vec3 scale{ 1.0f, 1.0f, 1.0f };
-        glm::vec3 rotation_axis{ 0.0f, 1.0f, 0.0f };
 
+        glm::vec3 rotation_axis{ 0.0f, 1.0f, 0.0f };
         float rotation_speed{ 0.0f };
-        float vertical_amplitude{ 0.0f };
-        float vertical_speed{ 0.0f };
-        float vertical_phase{ 0.0f };
+
+        std::vector<PositionAnimation> position_animations;
 
         glm::vec2 uv_offset{ 0.0f, 0.0f };
         glm::vec2 uv_scale{ 1.0f, 1.0f };
+
+        float collision_radius{ 1.0f };
+        bool collidable{ true };
     };
+
+    // Collisions
+    float player_collision_radius_{ 0.25f };
+
+    float map_min_x_{ -15.0f };
+    float map_max_x_{  15.0f };
+    float map_min_y_{ -15.5f };
+    float map_max_y_{  15.0f };
+    float map_min_z_{ -15.0f };
+    float map_max_z_{  15.0f };
+
+
+    bool collision_active_{ false };
+
+    glm::vec3 get_object_position_(const SceneObject& object, float time) const;
+    float get_object_radius_(const SceneObject& object) const;
+
+    bool is_inside_map_(const glm::vec3& position) const;
+    bool collides_with_scene_(const glm::vec3& position, float time) const;
+    bool is_valid_player_position_(const glm::vec3& position, float time) const;
+
+    void try_move_camera_(const glm::vec3& movement, float time);
+    void push_camera_out_of_collisions_(float time);
+
+
 
     // loaded assets
     std::shared_ptr<ShaderProgram> shader_;
