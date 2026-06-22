@@ -142,6 +142,41 @@ private:
     float fog_near_{ 11.0f };
     float fog_far_{ 25.0f };
 
+    struct Particle {
+        glm::vec3 position{ 0.0f, 0.0f, 0.0f };
+        glm::vec3 velocity{ 0.0f, 0.0f, 0.0f };
+
+        float lifetime{ 1.0f };
+        float max_lifetime{ 1.0f };
+        float size{ 0.05f };
+
+        glm::vec4 color{ 1.0f, 0.6f, 0.1f, 1.0f };
+    };
+
+    // Particle effect
+    std::shared_ptr<Mesh> particle_mesh_;
+    std::shared_ptr<Texture> particle_texture_;
+
+    glm::vec2 particle_uv_offset_{ 0.0f, 0.0f };
+    glm::vec2 particle_uv_scale_{ 1.0f, 1.0f };
+
+    std::vector<Particle> particles_;
+
+    double last_collision_particle_time_{ -100.0 };
+    double last_trail_particle_time_{ 0.0 };
+
+    std::size_t trail_object_index_{ 1 };
+
+    void spawn_particles_(
+    const glm::vec3& origin,
+    int count,
+    float speed,
+    float lifetime,
+    const glm::vec4& color
+);
+
+    void update_particles_(float dt);
+
     // loaded assets
     std::shared_ptr<ShaderProgram> shader_;
     std::vector<SceneObject> scene_objects_;
