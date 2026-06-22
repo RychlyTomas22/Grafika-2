@@ -341,80 +341,135 @@ void App::init_assets(void) {
 
     scene_objects_.clear();
 
-    // Atlas cube 1: tile from atlas
-    scene_objects_.push_back(SceneObject{
-        cube_mesh,
-        texture_atlas,
-        glm::vec3(-2.2f, 0.0f, 0.0f),
-        glm::vec3(0.55f, 0.55f, 0.55f),
-        glm::vec3(0.0f, 1.0f, 0.0f),
-        1.0f,
-        0.0f,
-        0.0f,
-        0.0f,
-        tile_offset(0, 0),
-        tile_scale
-    });
 
-    // Atlas cube 2: different tile from atlas
-    scene_objects_.push_back(SceneObject{
-        cube_mesh,
-        texture_atlas,
-        glm::vec3(-0.8f, 0.0f, 0.0f),
-        glm::vec3(0.55f, 0.55f, 0.55f),
-        glm::vec3(1.0f, 0.0f, 0.0f),
-        -0.8f,
-        0.25f,
-        2.0f,
-        0.0f,
-        tile_offset(1, 0),
-        tile_scale
-    });
 
-    // Atlas cube 3: different tile from atlas
-    scene_objects_.push_back(SceneObject{
-        cube_mesh,
-        texture_atlas,
-        glm::vec3(0.6f, 0.0f, 0.0f),
-        glm::vec3(0.55f, 0.55f, 0.55f),
-        glm::vec3(0.0f, 1.0f, 1.0f),
-        0.6f,
-        0.15f,
-        1.4f,
-        1.5f,
-        tile_offset(2, 0),
-        tile_scale
-    });
+// Atlas cube 1
+scene_objects_.push_back(SceneObject{
+    cube_mesh,
+    texture_atlas,
 
-    // Sphere: different model loaded from file
-    scene_objects_.push_back(SceneObject{
-        bunny_mesh,
-        onyx,
-        glm::vec3(5.0f, 0.0f, 0.0f),
-        glm::vec3(0.55f, 0.55f, 0.55f),
-        glm::vec3(1.0f, 0.0f, 0.0f),
-        -0.6f,
-        0.4f,
-        2.0f,
-        0.0f,
-        glm::vec2(0.0f, 0.0f),
-        glm::vec2(1.0f, 1.0f)
-    });
+    glm::vec3(-2.2f, 0.0f, 0.0f),
+    glm::vec3(0.55f, 0.55f, 0.55f),
 
-    // Teapot: another different model loaded from file
-    scene_objects_.push_back(SceneObject{
-        teapot_mesh,
-        onyx,
-        glm::vec3(0.0f, -3.0f, -1.8f),
-        glm::vec3(0.25f, 0.25f, 0.25f),
-        glm::vec3(0.0f, 1.0f, 0.0f),
-        0.7f,
-        0.2f,
-        1.4f,
-        1.5f,
-        glm::vec2(0.0f, 0.0f),
-        glm::vec2(1.0f, 1.0f)
-    });
+    glm::vec3(0.0f, 1.0f, 0.0f),
+    1.0f,
+
+    {},
+
+    tile_offset(0, 0),
+    tile_scale,
+
+    1.0f,
+    true
+});
+
+// Atlas cube 2
+scene_objects_.push_back(SceneObject{
+    cube_mesh,
+    texture_atlas,
+
+    glm::vec3(-0.8f, 0.0f, 5.0f),
+    glm::vec3(0.55f, 0.55f, 0.55f),
+
+    glm::vec3(1.0f, 0.0f, 0.0f),
+    -0.8f,
+
+    {
+        PositionAnimation{
+            glm::vec3(0.0f, 0.0f, 0.0f),
+            glm::vec3(-4.2f, 0.0f, 0.0f),
+            0.8f,
+            0.0f
+        }
+    },
+
+    tile_offset(1, 0),
+    tile_scale,
+
+    1.0f,
+    true
+});
+
+// Atlas cube 3
+scene_objects_.push_back(SceneObject{
+    cube_mesh,
+    texture_atlas,
+
+    glm::vec3(0.6f, 0.0f, 0.0f),
+    glm::vec3(0.55f, 0.55f, 0.55f),
+
+    glm::vec3(0.0f, 1.0f, 1.0f),
+    0.6f,
+
+    {
+        PositionAnimation{
+            glm::vec3(0.0f, -0.15f, 5.0f),
+            glm::vec3(0.0f,  0.15f, 0.0f),
+            1.4f,
+            1.5f
+        }
+    },
+
+    tile_offset(2, 0),
+    tile_scale,
+
+    1.0f,
+    true
+});
+
+// Bunny
+scene_objects_.push_back(SceneObject{
+    bunny_mesh,
+    onyx,
+
+    glm::vec3(8.0f, 0.0f, 0.0f),
+    glm::vec3(0.55f, 0.55f, 0.55f),
+
+    glm::vec3(0.0f, 1.0f, 1.0f),
+    -0.6f,
+
+    {
+        PositionAnimation{
+            glm::vec3(0.0f, -0.30f, 0.0f),
+            glm::vec3(0.0f,  0.30f, 0.0f),
+            2.0f,
+            0.0f
+        }
+    },
+
+    glm::vec2(0.0f, 0.0f),
+    glm::vec2(1.0f, 1.0f),
+
+    4.5f,
+    true
+});
+
+// Teapot
+scene_objects_.push_back(SceneObject{
+    teapot_mesh,
+    onyx,
+
+    glm::vec3(0.0f, -0.5f, -5.0f),
+    glm::vec3(0.25f, 0.25f, 0.25f),
+
+    glm::vec3(0.0f, 1.0f, 0.0f),
+    0.2f,
+
+    {
+        PositionAnimation{
+            glm::vec3(0.0f, -0.20f, 0.0f),
+            glm::vec3(0.0f,  0.20f, 0.0f),
+            1.4f,
+            1.5f
+        }
+    },
+
+    glm::vec2(0.0f, 0.0f),
+    glm::vec2(1.0f, 1.0f),
+
+    6.0f,
+    true
+});
 }
 
 void App::init_imgui()
@@ -436,6 +491,129 @@ static void save_screenshot_bgr(const std::string& path, int w, int h)
     glReadPixels(0, 0, w, h, GL_BGR, GL_UNSIGNED_BYTE, img.data);
     cv::flip(img, img, 0); // OpenGL origin bottom-left
     cv::imwrite(path, img);
+}
+
+glm::vec3 App::get_object_position_(const SceneObject& object, float time) const
+{
+    glm::vec3 pos = object.position;
+
+    for (const auto& anim : object.position_animations) {
+        const float k =
+            0.5f - 0.5f * std::cos(time * anim.speed + anim.phase);
+
+        pos += glm::mix(anim.from_offset, anim.to_offset, k);
+    }
+
+    return pos;
+}
+
+float App::get_object_radius_(const SceneObject& object) const
+{
+    const float max_scale = std::max(object.scale.x, std::max(object.scale.y, object.scale.z));
+    return object.collision_radius * max_scale;
+}
+
+bool App::is_inside_map_(const glm::vec3& position) const
+{
+    if (position.x < map_min_x_ + player_collision_radius_) return false;
+    if (position.x > map_max_x_ - player_collision_radius_) return false;
+
+    if (position.y < map_min_y_ + player_collision_radius_) return false;
+    if (position.y > map_max_y_ - player_collision_radius_) return false;
+
+    if (position.z < map_min_z_ + player_collision_radius_) return false;
+    if (position.z > map_max_z_ - player_collision_radius_) return false;
+
+    return true;
+}
+
+bool App::collides_with_scene_(const glm::vec3& position, float time) const
+{
+    for (const auto& object : scene_objects_) {
+        if (!object.collidable) {
+            continue;
+        }
+
+        const glm::vec3 object_pos = get_object_position_(object, time);
+        const float object_radius = get_object_radius_(object);
+
+        const float min_distance = player_collision_radius_ + object_radius;
+        const glm::vec3 diff = position - object_pos;
+        const float dist2 = glm::dot(diff, diff);
+
+        if (dist2 < min_distance * min_distance) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool App::is_valid_player_position_(const glm::vec3& position, float time) const
+{
+    if (!is_inside_map_(position)) {
+        return false;
+    }
+
+    if (collides_with_scene_(position, time)) {
+        return false;
+    }
+
+    return true;
+}
+
+void App::try_move_camera_(const glm::vec3& movement, float time)
+{
+    const glm::vec3 old_position = cam_pos_;
+
+    const glm::vec3 full_move = old_position + movement;
+
+    if (is_valid_player_position_(full_move, time)) {
+        cam_pos_ = full_move;
+        return;
+    }
+
+    collision_active_ = true;
+
+    // Sliding
+    const glm::vec3 move_x = old_position + glm::vec3(movement.x, 0.0f, 0.0f);
+    if (is_valid_player_position_(move_x, time)) {
+        cam_pos_ = move_x;
+    }
+
+    const glm::vec3 move_z = cam_pos_ + glm::vec3(0.0f, 0.0f, movement.z);
+    if (is_valid_player_position_(move_z, time)) {
+        cam_pos_ = move_z;
+    }
+}
+
+void App::push_camera_out_of_collisions_(float time)
+{
+    for (const auto& object : scene_objects_) {
+        if (!object.collidable) {
+            continue;
+        }
+
+        const glm::vec3 object_pos = get_object_position_(object, time);
+        const float object_radius = get_object_radius_(object);
+        const float min_distance = player_collision_radius_ + object_radius;
+
+        glm::vec3 diff = cam_pos_ - object_pos;
+        float dist2 = glm::dot(diff, diff);
+
+        if (dist2 < 0.000001f) {
+            diff = glm::vec3(1.0f, 0.0f, 0.0f);
+            dist2 = 1.0f;
+        }
+
+        const float dist = std::sqrt(dist2);
+
+        if (dist < min_distance) {
+            const glm::vec3 push_dir = diff / dist;
+            cam_pos_ = object_pos + push_dir * min_distance;
+            collision_active_ = true;
+        }
+    }
 }
 
 int App::run()
@@ -466,15 +644,46 @@ int App::run()
                 fps_frames_ = 0;
             }
 
+            const float tf = static_cast<float>(t);
             const float dtf = static_cast<float>(dt);
             const float v = cam_speed_ * dtf;
 
-            if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) cam_pos_ += v * cam_front_;
-            if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) cam_pos_ -= v * cam_front_;
+            collision_active_ = false;
 
-            glm::vec3 right = glm::normalize(glm::cross(cam_front_, cam_up_));
-            if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) cam_pos_ += v * right;
-            if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) cam_pos_ -= v * right;
+            glm::vec3 forward = glm::vec3(cam_front_.x, 0.0f, cam_front_.z);
+            if (glm::dot(forward, forward) > 0.0001f) {
+                forward = glm::normalize(forward);
+            }else {
+                forward = glm::vec3(0.0f, 0.0f, -1.0f);
+            }
+
+            glm::vec3 right = glm::normalize(glm::cross(forward, cam_up_));
+
+            if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+                try_move_camera_(v * forward, tf);
+            }
+
+            if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+                try_move_camera_(-v * forward, tf);
+            }
+
+            if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+                try_move_camera_(v * right, tf);
+            }
+
+            if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+                try_move_camera_(-v * right, tf);
+            }
+
+            if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+                try_move_camera_(v * glm::vec3(0.0f, 1.0f, 0.0f), tf);
+            }
+
+            if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
+                try_move_camera_(-v * glm::vec3(0.0f, 1.0f, 0.0f), tf);
+            }
+
+            push_camera_out_of_collisions_(tf);
 
             glm::mat4 view = glm::lookAt(cam_pos_, cam_pos_ + cam_front_, cam_up_);
 
@@ -503,6 +712,8 @@ int App::run()
                 glGetIntegerv(GL_SAMPLES, &samples);
 
                 ImGui::Begin("HUD", nullptr, flags);
+                ImGui::Text("Collision: %s", collision_active_ ? "YES" : "no");
+                ImGui::Text("Player position: %.2f %.2f %.2f", cam_pos_.x, cam_pos_.y, cam_pos_.z);
                 ImGui::Text("FPS: %.1f", fps_value_);
                 ImGui::Text("dt:  %.4f s", dt);
                 ImGui::Text("FOV: %.1f", fov_deg_);
@@ -553,7 +764,7 @@ int App::run()
             shader_->setUniform("uV_m", view);
             shader_->setUniform("uP_m", proj_);
 
-            const float tf = static_cast<float>(t);
+            //const float tf = static_cast<float>(t);
 
             // light 0
             glm::mat4 light_m0(1.0f);
@@ -636,13 +847,9 @@ int App::run()
             for (const auto& object : scene_objects_) {
                 glm::mat4 model(1.0f);
 
-                const float vertical_offset =
-                    object.vertical_amplitude * std::sin(tf * object.vertical_speed + object.vertical_phase);
+                const glm::vec3 object_world_position = get_object_position_(object, tf);
 
-                model = glm::translate(
-                    model,
-                    object.position + glm::vec3(0.0f, vertical_offset, 0.0f)
-                );
+                model = glm::translate(model, object_world_position);
 
                 model = glm::rotate(
                     model,
