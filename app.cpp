@@ -10,7 +10,7 @@
 #include <filesystem>
 
 // OpenCV (does not depend on GL)
-#include <opencv2\opencv.hpp>
+#include <opencv2/opencv.hpp>
 
 // OpenGL Extension Wrangler: allow all multiplatform GL functions
 #include <GL/glew.h>
@@ -348,6 +348,11 @@ void App::init_assets(void) {
         };
     };
 
+    particle_mesh_ = cube_mesh;
+    particle_texture_ = texture_atlas;
+    particle_uv_offset_ = tile_offset(8, 2);
+    particle_uv_scale_ = tile_scale;
+
     scene_objects_.clear();
 
 
@@ -646,6 +651,68 @@ void App::push_camera_out_of_collisions_(float time)
     }
 }
 
+void App::spawn_particles_(
+    const glm::vec3& origin,
+    int count,
+    float speed,
+    float lifetime,
+    const glm::vec4& color
+)
+{
+    std::uniform_real_distribution<float> unit(-1.0f, 1.0f);
+    std::uniform_real_distribution<float> factor(0.5f, 1.2f);
+    std::uniform_real_distribution<float> size_dist(0.025f, 0.075f);
+
+    for (int i = 0; i < count; ++i) {
+        glm::vec3 dir;
+
+        do {
+            dir = glm::vec3(unit(rng_), unit(rng_), unit(rng_));
+        } while (glm::dot(dir, dir) < 0.0001f);
+
+        dir = glm::normalize(dir);
+
+        Particle p;
+        p.position = origin + dir * 0.05f;
+        p.velocity = dir * speed * factor(rng_) + glm::vec3(0.0f, 0.4f, 0.0f);
+        p.lifetime = lifetime * factor(rng_);
+        p.max_lifetime = p.lifetime;
+        p.size = size_dist(rng_);
+        p.color = color;
+
+        particles_.push_back(p);
+    }
+
+    // Safety cap so particles cannot grow forever.
+    constexpr std::size_t max_particles = 600;
+    if (particles_.size() > max_particles) {
+        const std::size_t remove_count = particles_.size() - max_particles;
+        particles_.erase(particles_.begin(), particles_.begin() + static_cast<std::ptrdiff_t>(remove_count));
+    }
+}
+
+void App::update_particles_(float dt)
+{
+    const glm::vec3 gravity{ 0.0f, -1.8f, 0.0f };
+
+    for (auto& particle : particles_) {
+        particle.velocity += gravity * dt;
+        particle.position += particle.velocity * dt;
+        particle.lifetime -= dt;
+    }
+
+    particles_.erase(
+        std::remove_if(
+            particles_.begin(),
+            particles_.end(),
+            [](const Particle& particle) {
+                return particle.lifetime <= 0.0f;
+            }
+        ),
+        particles_.end()
+    );
+}
+
 int App::run()
 {
     try {
@@ -715,6 +782,38 @@ int App::run()
 
             push_camera_out_of_collisions_(tf);
 
+            // Collision particle burst with cooldown.
+            if (collision_active_ && (t - last_collision_particle_time_) > 0.35) {
+                spawn_particles_(
+                    cam_pos_,
+                    40,
+                    2.4f,
+                    0.75f,
+                    glm::vec4(1.0f, 0.55f, 0.10f, 0.80f)
+                );
+
+                last_collision_particle_time_ = t;
+            }
+
+            // Trail behind selected moving object.
+            // trail_object_index - witch object to use for partiles
+            if (scene_objects_.size() > trail_object_index_ && (t - last_trail_particle_time_) > 0.035) {
+                const glm::vec3 trail_pos =
+                    get_object_position_(scene_objects_[trail_object_index_], tf);
+
+                spawn_particles_(
+                    trail_pos,
+                    2,
+                    0.45f,
+                    0.45f,
+                    glm::vec4(0.25f, 0.75f, 1.0f, 0.45f)
+                );
+
+                last_trail_particle_time_ = t;
+            }
+
+            update_particles_(dtf);
+
             glm::mat4 view = glm::lookAt(cam_pos_, cam_pos_ + cam_front_, cam_up_);
 
             // Title update is fine in windowed, but fullscreen has no visible title bar.
@@ -757,6 +856,9 @@ int App::run()
                 ImGui::Checkbox("Fog shader effect", &fog_enabled_);
                 ImGui::SliderFloat("Fog near", &fog_near_, 0.1f, 20.0f);
                 ImGui::SliderFloat("Fog far", &fog_far_, 1.0f, 40.0f);
+                ImGui::Separator();
+
+                ImGui::Text("Particles: %zu", particles_.size());
                 ImGui::Separator();
 
                 ImGui::Checkbox("Show ImGui (F1)", &show_imgui);
@@ -956,7 +1058,49 @@ int App::run()
                 draw_object(scene_objects_[index]);
             }
 
-            glDepthMask(GL_TRUE);
+            // Draw particles as transparent tiny cubes.
+            if (particle_mesh_ && particle_texture_ && !particles_.empty()) {
+                std::vector<std::size_t> particle_indices;
+                particle_indices.reserve(particles_.size());
+
+                for (std::size_t i = 0; i < particles_.size(); ++i) {
+                    particle_indices.push_back(i);
+                }
+
+                std::sort(
+                    particle_indices.begin(),
+                    particle_indices.end(),
+                    [&](std::size_t ia, std::size_t ib) {
+                        const glm::vec3 da = particles_[ia].position - cam_pos_;
+                        const glm::vec3 db = particles_[ib].position - cam_pos_;
+
+                        return glm::dot(da, da) > glm::dot(db, db);
+                    }
+                );
+
+                particle_texture_->bind();
+
+                for (std::size_t index : particle_indices) {
+                    const Particle& particle = particles_[index];
+
+                    const float life_ratio =
+                        glm::clamp(particle.lifetime / particle.max_lifetime, 0.0f, 1.0f);
+
+                    glm::vec4 particle_color = particle.color;
+                    particle_color.a *= life_ratio;
+
+                    glm::mat4 model(1.0f);
+                    model = glm::translate(model, particle.position);
+                    model = glm::scale(model, glm::vec3(particle.size));
+
+                    shader_->setUniform("uM_m", model);
+                    shader_->setUniform("uv_offset", particle_uv_offset_);
+                    shader_->setUniform("uv_scale", particle_uv_scale_);
+                    shader_->setUniform("object_color", particle_color);
+
+                    particle_mesh_->draw();
+                }
+            }
 
             glDepthMask(GL_TRUE);
 
