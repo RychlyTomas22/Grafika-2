@@ -1,3 +1,21 @@
+/*
+ * ShaderProgram.cpp
+ * ---------------------------------------------------------------------------
+ * Implementation of the ShaderProgram RAII wrapper.
+ *
+ * The class handles:
+ * - loading shader code from strings or files
+ * - compiling vertex and fragment shaders
+ * - linking them into an OpenGL shader program
+ * - setting uniforms using Direct State Access calls
+ * - caching uniform locations to avoid repeated glGetUniformLocation calls
+ *
+ * The project uses modern OpenGL functions such as glProgramUniform*.
+ * These functions set uniforms directly on a program object and do not require
+ * the program to be currently active with glUseProgram.
+ * ---------------------------------------------------------------------------
+ */
+
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -6,12 +24,20 @@
 
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include "ShaderProgram.hpp"
 
 // set uniform according to name
 // https://docs.gl/gl4/glUniform
 
+/*
+ * Optional Mesh.hpp include.
+ *
+ * If Mesh.hpp is available, ShaderProgram binds predefined vertex attribute
+ * locations before linking. This keeps shader inputs and VAO attribute
+ * locations consistent.
+ */
 #if __has_include("Mesh.hpp")
     #include "Mesh.hpp"
     #define SHADERPROGRAM_HAS_MESH 1
@@ -19,6 +45,12 @@
     #define SHADERPROGRAM_HAS_MESH 0
 #endif
 
+/*
+ * Creates a shader program directly from source code strings.
+ *
+ * The constructor compiles both shaders and links them into one GPU program.
+ * If compilation or linking fails, an exception is thrown.
+ */
 ShaderProgram::ShaderProgram(const std::string & vertex_shader_code, const std::string & fragment_shader_code) {
     // compile shaders and store IDs for linker
     auto vertex_shader   = compile_shader(vertex_shader_code, GL_VERTEX_SHADER);
@@ -30,6 +62,11 @@ ShaderProgram::ShaderProgram(const std::string & vertex_shader_code, const std::
     ID = link_shader(shader_ids);
 }
 
+/*
+ * Creates a shader program from two shader files.
+ *
+ * The files are read as text and then passed to the source-code constructor.
+ */
 ShaderProgram::ShaderProgram(const std::filesystem::path & VS_file, const std::filesystem::path & FS_file) :
     ShaderProgram{textFileRead(VS_file), textFileRead(FS_file)} {}
 
@@ -43,6 +80,14 @@ GLint ShaderProgram::getUniformLocation(const std::string & name) {
         return it->second;
     }
 
+    /*
+     * Query uniform location from OpenGL.
+     *
+     * A result of -1 usually means:
+     * - uniform does not exist
+     * - uniform was optimized out by the GLSL compiler
+     * - name is wrong
+     */
     // Get the location and cache it
     auto loc = glGetUniformLocation(ID, name.c_str());
     if (loc == -1) {
@@ -52,6 +97,12 @@ GLint ShaderProgram::getUniformLocation(const std::string & name) {
     return loc;
 }
 
+/*
+ * Returns vertex attribute location by name.
+ *
+ * Mostly useful for debugging. In this project, attribute locations are
+ * normally fixed before shader linking.
+ */
 GLint ShaderProgram::getAttribLocation(const std::string & name) {
     GLint loc = glGetAttribLocation(ID, name.c_str());
     if (loc == -1) {
@@ -60,6 +111,13 @@ GLint ShaderProgram::getAttribLocation(const std::string & name) {
     }
     return loc;
 }
+
+/*
+ * Uniform setters.
+ *
+ * These functions use DSA glProgramUniform* calls. The shader program does not
+ * need to be currently bound by glUseProgram to update a uniform.
+ */
 
 void ShaderProgram::setUniform(const std::string& name, const glm::vec2& val) {
     auto loc = getUniformLocation(name);
@@ -115,6 +173,9 @@ void ShaderProgram::setUniform(const std::string & name, const std::vector<glm::
     glProgramUniform3fv(ID, loc, static_cast<GLsizei>(val.size()), glm::value_ptr(val[0]));
 }
 
+/*
+ * Reads and returns the compile log of one shader object.
+ */
 std::string ShaderProgram::getShaderInfoLog(const GLuint obj) {
     int log_length = 0;
     std::string s;
@@ -127,6 +188,9 @@ std::string ShaderProgram::getShaderInfoLog(const GLuint obj) {
     return s;
 }
 
+/*
+ * Reads and returns the link log of one shader program.
+ */
 std::string ShaderProgram::getProgramInfoLog(const GLuint obj) {
     int log_length = 0;
     std::string s;
@@ -139,6 +203,19 @@ std::string ShaderProgram::getProgramInfoLog(const GLuint obj) {
     return s;
 }
 
+/*
+ * Compiles one shader.
+ *
+ * Parameters:
+ * - source_code: GLSL source code
+ * - type: GL_VERTEX_SHADER, GL_FRAGMENT_SHADER, etc.
+ *
+ * Returns:
+ * - OpenGL shader object ID
+ *
+ * Throws:
+ * - std::runtime_error if compilation fails
+ */
 GLuint ShaderProgram::compile_shader(const std::string & source_code, const GLenum type) {
     char const *src_cstr = source_code.c_str();
 
@@ -159,6 +236,19 @@ GLuint ShaderProgram::compile_shader(const std::string & source_code, const GLen
     return shader_ID;
 }
 
+/*
+ * Links compiled shaders into one shader program.
+ *
+ * The function:
+ * 1. creates program object
+ * 2. attaches compiled shaders
+ * 3. binds known vertex attribute locations
+ * 4. links the program
+ * 5. detaches and deletes shader objects
+ * 6. checks link status
+ *
+ * After linking, individual shader objects are no longer needed.
+ */
 GLuint ShaderProgram::link_shader(const std::vector<GLuint> shader_ids) {
     GLuint prog_ID = glCreateProgram();
 
@@ -198,6 +288,11 @@ GLuint ShaderProgram::link_shader(const std::vector<GLuint> shader_ids) {
     return prog_ID;
 }
 
+/*
+ * Reads a whole text file into a std::string.
+ *
+ * Used for loading .vert and .frag shader files.
+ */
 std::string ShaderProgram::textFileRead(const std::filesystem::path& filepath) {
     std::ifstream file(filepath);
     if (!file.is_open())
