@@ -13,11 +13,7 @@ find_package(glfw3         CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(imgui         CONFIG REQUIRED)
 
-if(WIN32)
-    find_package(OpenCV CONFIG REQUIRED PATHS "C:/opencv/opencv/build/x64/vc16/lib")
-elseif(UNIX)
-    find_package(OpenCV CONFIG REQUIRED)
-endif()
+find_package(OpenCV CONFIG REQUIRED)
 
 set(PROJECT_SOURCES
         glfw_callbacks.cpp
@@ -31,6 +27,10 @@ set(PROJECT_SOURCES
 )
 
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCES})
+
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+        GLFW_INCLUDE_NONE
+)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
         GLEW::GLEW

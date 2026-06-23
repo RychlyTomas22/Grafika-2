@@ -4,7 +4,8 @@
     "height": 720,
     "title": "PG2 APP",
     "vsync": true,
-    "msaa_samples": 4
+    "msaa_samples": 4,
+    "fullscreen": true
   },
   "camera": {
     "speed": 3.0,

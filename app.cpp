@@ -45,11 +45,49 @@
 #include "Mesh.hpp"
 #include "Texture.hpp"
 
+// -----------------------------------------------------------------------------
+// Project documentation
+// -----------------------------------------------------------------------------
+// This file contains the main application logic for a real-time OpenGL scene.
+//
+// The application is organized into these parts:
+//   1) configuration loading from resources/config.json
+//   2) OpenGL/GLFW/GLEW/ImGui initialization
+//   3) asset loading: shaders, OBJ models, textures and texture atlas data
+//   4) frame loop: input, camera movement, collisions, particles, lighting,
+//      rendering and GUI
+//   5) event callbacks: keyboard, mouse, scroll and framebuffer resize
+//
+// Rendering is based on OpenGL Core Profile and shader programs. Scene objects
+// are stored in scene_objects_. Each object contains its mesh, texture, transform,
+// animation data, collision radius, color and transparency flag.
+//
+// Important assignment-related features implemented here:
+//   - JSON configuration
+//   - FPS display
+//   - fullscreen/windowed switching with window restore
+//   - VSync and MSAA control
+//   - keyboard + mouse input
+//   - independently moving 3D models
+//   - lighting uniforms for directional, point and spotlight lights
+//   - custom shader effect configuration: distance fog
+//   - correct alpha transparency pass
+//   - collision detection and simple sliding
+//   - particle effects
+// -----------------------------------------------------------------------------
+
+// -----------------------------------------------------------------------------
+// Application lifetime and window state helpers
+// -----------------------------------------------------------------------------
+
 App::App()
 {
     std::cout << "Constructed...\n";
 }
 
+// Enables or disables mouse cursor capture.
+ // Captured cursor is used for first-person camera look.
+ // When the cursor is captured, GLFW hides it and reports relative movement.
 void App::set_cursor_captured_(bool captured)
 {
     if (!window) return;
@@ -62,6 +100,9 @@ void App::set_cursor_captured_(bool captured)
     }
 }
 
+// Switches between windowed and fullscreen mode.
+ // Before entering fullscreen, the current window position and size are saved.
+ // That makes it possible to restore the original window state when F11 is pressed.
 void App::toggle_fullscreen_()
 {
     if (!window) return;
@@ -99,11 +140,16 @@ void App::toggle_fullscreen_()
         is_fullscreen_ = false;
     }
 }
+// Creates a perspective projection matrix from configurable camera values.
+ // The field of view can also be changed at runtime using the mouse wheel.
 static glm::mat4 make_perspective(float fov_deg, float aspect, float znear, float zfar)
 {
     return glm::perspective(glm::radians(fov_deg), aspect, znear, zfar);
 }
 
+// Reads a vec4 value from JSON.
+ // Used mainly for color values such as clear_color.
+ // If the key is missing or has an invalid format, the fallback value is returned.
 static glm::vec4 json_vec4_or_default(
     const nlohmann::json& j,
     const std::string& key,
@@ -122,6 +168,16 @@ static glm::vec4 json_vec4_or_default(
     );
 }
 
+// Loads application settings from resources/config.json.
+ //
+ // The config file is optional. If it is missing or invalid, default values from
+ // the App class are used. This keeps the application runnable even when the
+ // external JSON file is not available.
+ //
+ // Currently loaded groups:
+ //   - window: size, title, VSync, MSAA and startup fullscreen
+ //   - camera: movement speed, FOV and near/far clipping planes
+ //   - rendering: clear color
 void App::load_config_()
 {
     const std::filesystem::path config_path = "resources/config.json";
@@ -156,6 +212,7 @@ void App::load_config_()
         window_height_ = w.value("height", window_height_);
         vsync_on_ = w.value("vsync", vsync_on_);
         msaa_samples_ = w.value("msaa_samples", msaa_samples_);
+        start_fullscreen_ = w.value("fullscreen", start_fullscreen_);
 
         if (w.contains("title")) {
             base_title_ = w.at("title").get<std::string>();
@@ -175,10 +232,23 @@ void App::load_config_()
         const auto& r = cfg.at("rendering");
         clear_color_ = json_vec4_or_default(r, "clear_color", clear_color_);
     }
+    std::cout << "Start fullscreen: " << (start_fullscreen_ ? "true" : "false") << "\n";
 
     std::cout << "Config loaded from: " << config_path.string() << "\n";
 }
 
+// Initializes the whole application.
+ //
+ // Order matters:
+ //   1) load JSON config
+ //   2) initialize GLFW and create OpenGL 4.6 Core Profile context
+ //   3) initialize GLEW
+ //   4) validate DSA support and enable OpenGL debug output
+ //   5) load scene assets
+ //   6) initialize ImGui
+ //
+ // The window is hidden during heavy initialization and shown only when the app
+ // is ready. This prevents a half-initialized window from flashing on screen.
 bool App::init() {
 
     load_config_();
@@ -218,6 +288,10 @@ bool App::init() {
         glfwSetWindowUserPointer(window, this);
         glfwcbRegisterAll(window);
 
+        if (start_fullscreen_) {
+            toggle_fullscreen_();
+        }
+
         glfwGetFramebufferSize(window, &fb_width_, &fb_height_);
 
         const float aspect = static_cast<float>(fb_width_) / static_cast<float>(fb_height_);
@@ -247,20 +321,6 @@ bool App::init() {
         if (!GLEW_ARB_direct_state_access)
             throw std::runtime_error("No DSA :-(");
 
-        // //TODO: get info about your GL context
-        //
-        // if (GLEW_ARB_debug_output)
-        // {
-        //     glDebugMessageCallback(MessageCallback, 0);
-        //     glEnable(GL_DEBUG_OUTPUT);
-        //
-        //     //default is asynchronous debug output, use this to simulate glGetError() functionality
-        //     //glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-        //
-        //     std::cout << "GL_DEBUG enabled." << std::endl;
-        // }
-        // else
-        //     std::cout << "GL_DEBUG NOT SUPPORTED!" << std::endl;
         glutilPrintContextInfoOrThrow(4, 6, 1);
         glutilTryEnableDebugOutput(MessageCallback, nullptr);
     }
@@ -276,6 +336,18 @@ bool App::init() {
     return true;
 }
 
+// Loads all render assets and builds the scene.
+ //
+ // This function loads:
+ //   - shader program
+ //   - OBJ meshes
+ //   - textures
+ //   - texture atlas tile coordinates
+ //   - particle rendering resources
+ //   - scene object definitions
+ //
+ // SceneObject data are intentionally stored in one list, so the render loop,
+ // collision detection and animation code can work with the same objects.
 void App::init_assets(void) {
     //
     // Initialize pipeline: compile, link and use shaders
@@ -507,6 +579,9 @@ scene_objects_.push_back(SceneObject{
     });
 }
 
+// Initializes ImGui.
+ // ImGui is used as an in-application HUD for FPS, collision state, VSync,
+ // fullscreen switching, fog controls and particle count.
 void App::init_imgui()
 {
     IMGUI_CHECKVERSION();
@@ -518,6 +593,10 @@ void App::init_imgui()
 
 }
 
+// Saves the current back buffer into an image file.
+ //
+ // OpenGL reads pixels from bottom-left origin, so the image is flipped before
+ // saving. OpenCV is used here only for image storage convenience.
 static void save_screenshot_bgr(const std::string& path, int w, int h)
 {
     cv::Mat img(h, w, CV_8UC3);
@@ -528,6 +607,11 @@ static void save_screenshot_bgr(const std::string& path, int w, int h)
     cv::imwrite(path, img);
 }
 
+// Computes final world position of a scene object at a specific time.
+ //
+ // The base position is combined with all PositionAnimation entries.
+ // This is important because rendering and collision detection must use the same
+ // animated position. Otherwise the visible object and its collider would not match.
 glm::vec3 App::get_object_position_(const SceneObject& object, float time) const
 {
     glm::vec3 pos = object.position;
@@ -542,12 +626,20 @@ glm::vec3 App::get_object_position_(const SceneObject& object, float time) const
     return pos;
 }
 
+// Returns effective collision radius of an object.
+ //
+ // The radius stored in SceneObject is multiplied by the largest scale component,
+ // so scaled objects also have scaled collision bounds.
 float App::get_object_radius_(const SceneObject& object) const
 {
     const float max_scale = std::max(object.scale.x, std::max(object.scale.y, object.scale.z));
     return object.collision_radius * max_scale;
 }
 
+// Checks whether the player camera is inside the playable map area.
+ //
+ // The player_collision_radius_ is included so the camera cannot partially move
+ // outside the allowed bounds.
 bool App::is_inside_map_(const glm::vec3& position) const
 {
     if (position.x < map_min_x_ + player_collision_radius_) return false;
@@ -562,6 +654,13 @@ bool App::is_inside_map_(const glm::vec3& position) const
     return true;
 }
 
+// Tests player position against all collidable scene objects.
+ //
+ // Collision detection uses simple bounding spheres:
+ //   distance(player, object) < player_radius + object_radius
+ //
+ // This is not physically perfect, but it is fast, stable and enough for this
+ // real-time project.
 bool App::collides_with_scene_(const glm::vec3& position, float time) const
 {
     for (const auto& object : scene_objects_) {
@@ -584,6 +683,8 @@ bool App::collides_with_scene_(const glm::vec3& position, float time) const
     return false;
 }
 
+// Combines map-boundary collision and object collision into one validation step.
+ // Movement code calls this before accepting a new camera position.
 bool App::is_valid_player_position_(const glm::vec3& position, float time) const
 {
     if (!is_inside_map_(position)) {
@@ -597,6 +698,10 @@ bool App::is_valid_player_position_(const glm::vec3& position, float time) const
     return true;
 }
 
+// Attempts to move the camera/player.
+ //
+ // If the full movement is blocked by collision, the function tries X and Z
+ // movement separately. This creates a simple sliding effect along obstacles.
 void App::try_move_camera_(const glm::vec3& movement, float time)
 {
     const glm::vec3 old_position = cam_pos_;
@@ -622,6 +727,11 @@ void App::try_move_camera_(const glm::vec3& movement, float time)
     }
 }
 
+// Pushes the camera out if a moving object overlaps it.
+ //
+ // This handles the case where the player is standing still but an animated object
+ // moves into the player. Without this function, moving objects could pass through
+ // the camera position.
 void App::push_camera_out_of_collisions_(float time)
 {
     for (const auto& object : scene_objects_) {
@@ -651,6 +761,15 @@ void App::push_camera_out_of_collisions_(float time)
     }
 }
 
+// Spawns a burst of particles around a given origin.
+ //
+ // Each particle receives:
+ //   - random direction
+ //   - random speed multiplier
+ //   - random lifetime
+ //   - random size
+ //
+ // Used for collision explosions and trail particles behind a moving object.
 void App::spawn_particles_(
     const glm::vec3& origin,
     int count,
@@ -691,6 +810,10 @@ void App::spawn_particles_(
     }
 }
 
+// Updates all active particles.
+ //
+ // Particles are affected by gravity, move according to velocity and disappear
+ // when their lifetime reaches zero.
 void App::update_particles_(float dt)
 {
     const glm::vec3 gravity{ 0.0f, -1.8f, 0.0f };
@@ -713,6 +836,18 @@ void App::update_particles_(float dt)
     );
 }
 
+// Main application loop.
+ //
+ // Every frame:
+ //   1) measure time and FPS
+ //   2) process continuous keyboard input
+ //   3) update camera and collisions
+ //   4) spawn/update particles
+ //   5) build view matrix
+ //   6) draw ImGui controls
+ //   7) clear buffers and render the scene
+ //   8) render transparent objects and particles in sorted order
+ //   9) render ImGui and swap buffers
 int App::run()
 {
     try {
@@ -729,6 +864,9 @@ int App::run()
         }
 
         while (!glfwWindowShouldClose(window)) {
+            // -----------------------------------------------------------------
+            // Frame timing and FPS calculation
+            // -----------------------------------------------------------------
             const double t = glfwGetTime();
             const double dt = t - fps_last_t_;
             fps_last_t_ = t;
@@ -745,6 +883,9 @@ int App::run()
             const float dtf = static_cast<float>(dt);
             const float v = cam_speed_ * dtf;
 
+            // -----------------------------------------------------------------
+            // Camera movement input
+            // -----------------------------------------------------------------
             collision_active_ = false;
 
             glm::vec3 forward = glm::vec3(cam_front_.x, 0.0f, cam_front_.z);
@@ -780,6 +921,9 @@ int App::run()
                 try_move_camera_(-v * glm::vec3(0.0f, 1.0f, 0.0f), tf);
             }
 
+            // -----------------------------------------------------------------
+            // Collision response and particle simulation
+            // -----------------------------------------------------------------
             push_camera_out_of_collisions_(tf);
 
             // Collision particle burst with cooldown.
@@ -814,6 +958,9 @@ int App::run()
 
             update_particles_(dtf);
 
+            // -----------------------------------------------------------------
+            // Camera view matrix
+            // -----------------------------------------------------------------
             glm::mat4 view = glm::lookAt(cam_pos_, cam_pos_ + cam_front_, cam_up_);
 
             // Title update is fine in windowed, but fullscreen has no visible title bar.
@@ -869,32 +1016,35 @@ int App::run()
                 if (ImGui::Button(is_fullscreen_ ? "Windowed (F11)" : "Fullscreen (F11)")) {
                     toggle_fullscreen_();
                 }
-
-                ImGui::Checkbox("Animate (P)", &animate_color_);
-                ImGui::ColorEdit4("Triangle", &tri_color_.x);
+                //ImGui::Checkbox("Animate (P)", &animate_color_);
+                //ImGui::ColorEdit4("Triangle", &tri_color_.x);
                 ImGui::ColorEdit4("Clear", &clear_color_.x);
 
                 ImGui::End();
             }
 
+            // -----------------------------------------------------------------
+            // Scene rendering
+            // -----------------------------------------------------------------
             // draw scene
             glClearColor(clear_color_.r, clear_color_.g, clear_color_.b, clear_color_.a);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-            glm::vec4 col = tri_color_;
-            if (animate_color_) {
-                const float tt = static_cast<float>(t);
-                const float w = 2.0f;
-                const float rmod = 0.5f + 0.5f * std::sin(tt * w + 0.0f);
-                const float gmod = 0.5f + 0.5f * std::sin(tt * w + 2.0943951f);
-                const float bmod = 0.5f + 0.5f * std::sin(tt * w + 4.1887902f);
-                col.r *= rmod;
-                col.g *= gmod;
-                col.b *= bmod;
-            }
+            // glm::vec4 col = tri_color_;
+            // if (animate_color_) {
+            //     const float tt = static_cast<float>(t);
+            //     const float w = 2.0f;
+            //     const float rmod = 0.5f + 0.5f * std::sin(tt * w + 0.0f);
+            //     const float gmod = 0.5f + 0.5f * std::sin(tt * w + 2.0943951f);
+            //     const float bmod = 0.5f + 0.5f * std::sin(tt * w + 4.1887902f);
+            //     col.r *= rmod;
+            //     col.g *= gmod;
+            //     col.b *= bmod;
+            // }
 
             // Fragment shader expects: uniform vec4 ucolor;
 
+            // Activate the main shader and send camera matrices shared by all objects.
             shader_->use();
             shader_->setUniform("tex0", 0);
             shader_->setUniform("uV_m", view);
@@ -902,6 +1052,11 @@ int App::run()
 
             //const float tf = static_cast<float>(t);
 
+            // -----------------------------------------------------------------
+            // Dynamic light positions
+            // -----------------------------------------------------------------
+            // Point light positions are animated in world space and then converted
+            // to view space because the lighting shader works in view coordinates.
             // light 0
             glm::mat4 light_m0(1.0f);
             light_m0 = glm::rotate(light_m0, tf * 1.0f, glm::vec3(0.0f, 1.0f, 0.0f));
@@ -965,6 +1120,9 @@ int App::run()
             shader_->setUniform("diffuse_intensity2", point_light2_.diffuse);
             shader_->setUniform("specular_intensity2", point_light2_.specular);
 
+            // -----------------------------------------------------------------
+            // Material, spotlight and custom fog uniforms
+            // -----------------------------------------------------------------
             // materiál
             shader_->setUniform("ambient_material", material_ambient_);
             shader_->setUniform("diffuse_material", material_diffuse_);
@@ -988,6 +1146,9 @@ int App::run()
             shader_->setUniform("fog_near", fog_near_);
             shader_->setUniform("fog_far", fog_far_);
 
+            // Helper lambda for drawing one scene object.
+            // It builds model matrix, binds texture, sends per-object uniforms and
+            // executes mesh draw call.
             auto draw_object = [&](const SceneObject& object) {
                 glm::mat4 model(1.0f);
 
@@ -1013,6 +1174,9 @@ int App::run()
                 object.mesh->draw();
             };
 
+            // -----------------------------------------------------------------
+            // Opaque pass and transparent pass preparation
+            // -----------------------------------------------------------------
             std::vector<std::size_t> transparent_indices;
             transparent_indices.reserve(scene_objects_.size());
 
@@ -1058,6 +1222,8 @@ int App::run()
                 draw_object(scene_objects_[index]);
             }
 
+            // Particles are also transparent, so they are rendered after normal
+            // transparent scene objects and sorted from far to near.
             // Draw particles as transparent tiny cubes.
             if (particle_mesh_ && particle_texture_ && !particles_.empty()) {
                 std::vector<std::size_t> particle_indices;
@@ -1104,6 +1270,9 @@ int App::run()
 
             glDepthMask(GL_TRUE);
 
+            // -----------------------------------------------------------------
+            // Final UI rendering and buffer swap
+            // -----------------------------------------------------------------
             // render ImGui on top
             if (show_imgui && imgui_inited_) {
                 ImGui::Render();
@@ -1125,11 +1294,25 @@ int App::run()
     return EXIT_SUCCESS;
 }
 
+// GLFW error callback.
+ // Prints GLFW errors into the console.
 void App::error_callback(int error, const char* description)
 {
     std::cerr << "GLFW error " << error << ": " << description << "\n";
 }
 
+// Keyboard event callback.
+ //
+ // Handles one-time key actions such as:
+ //   - ESC cursor release / quit
+ //   - TAB cursor capture
+ //   - F11 fullscreen toggle
+ //   - F1 ImGui toggle
+ //   - V VSync toggle
+ //   - M MSAA toggle
+ //   - screenshot keys
+ //
+ // Continuous movement keys are handled in the main loop instead.
 void App::on_key(int key, int /*scancode*/, int action, int /*mods*/)
 {
     if (action != GLFW_PRESS && action != GLFW_REPEAT) return;
@@ -1163,15 +1346,16 @@ void App::on_key(int key, int /*scancode*/, int action, int /*mods*/)
         show_imgui = !show_imgui;
         break;
 
-    case GLFW_KEY_P:
-        animate_color_ = !animate_color_;
-        break;
-
+    // [CURRENTLY NO EFFECT]
+    // case GLFW_KEY_P:
+    //     animate_color_ = !animate_color_;
+    //     break;
+    //
     case GLFW_KEY_C: {
         std::uniform_real_distribution<float> u(0.0f, 1.0f);
         clear_color_ = {u(rng_), u(rng_), u(rng_), 1.0f};
         break;
-    }
+     }
 
     case GLFW_KEY_V:
         vsync_on_ = !vsync_on_;
@@ -1204,6 +1388,10 @@ void App::on_key(int key, int /*scancode*/, int action, int /*mods*/)
     }
 }
 
+// Framebuffer resize callback.
+ //
+ // Updates OpenGL viewport and recomputes projection matrix when the window size
+ // changes. This keeps the aspect ratio correct in both windowed and fullscreen.
 void App::on_fbsize(int width, int height) {
     fb_width_ = (width > 0) ? width : 1;
     fb_height_ = (height > 0) ? height : 1;
@@ -1213,6 +1401,10 @@ void App::on_fbsize(int width, int height) {
     proj_ = make_perspective(fov_deg_, aspect, znear_, zfar_);
 }
 
+// Mouse button callback.
+ //
+ // Left click captures the cursor when needed and can randomize the demo color.
+ // Right click releases the cursor.
 void App::on_mouse_button(int button, int action, int /*mods*/)
 {
     if (action != GLFW_PRESS) return;
@@ -1225,7 +1417,7 @@ void App::on_mouse_button(int button, int action, int /*mods*/)
 
         left_mouse_down_ = true;
         std::uniform_real_distribution<float> u(0.0f, 1.0f);
-        tri_color_ = {u(rng_), u(rng_), u(rng_), 1.0f};
+        //tri_color_ = {u(rng_), u(rng_), u(rng_), 1.0f};
         return;
     }
 
@@ -1235,6 +1427,10 @@ void App::on_mouse_button(int button, int action, int /*mods*/)
     }
 }
 
+// Mouse movement callback.
+ //
+ // When the cursor is captured, mouse delta changes camera yaw and pitch.
+ // Pitch is clamped to avoid flipping the camera upside down.
 void App::on_cursor_pos(double x, double y)
 {
     cursor_x_ = x;
@@ -1277,6 +1473,9 @@ void App::on_cursor_pos(double x, double y)
 
 
 
+// Mouse wheel callback.
+ //
+ // The wheel changes field of view and updates the projection matrix immediately.
 void App::on_scroll(double /*xoffset*/, double yoffset)
 {
     // Mouse wheel changes field of view.
@@ -1296,6 +1495,10 @@ void App::on_scroll(double /*xoffset*/, double yoffset)
     proj_ = make_perspective(fov_deg_, aspect, znear_, zfar_);
 }
 
+// Cleans up owned resources.
+ //
+ // ImGui is shut down before GLFW window destruction.
+ // GLFW is terminated after the window is destroyed.
 App::~App()
 {
     scene_objects_.clear();
