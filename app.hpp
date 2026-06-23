@@ -162,10 +162,11 @@ private:
     std::string screenshot_path_;
 
     // runtime state controlled via callbacks
-    glm::vec4 tri_color_{ 1.0f, 1.0f, 1.0f, 1.0f };
+
     glm::vec4 clear_color_{ 0.08f, 0.08f, 0.10f, 1.0f };
-    bool animate_color_{ true };
     bool left_mouse_down_{ false };
+    //bool animate_color_{ false };
+    //glm::vec4 tri_color_{ 1.0f, 1.0f, 1.0f, 1.0f };
 
     /*
      * Current framebuffer size and last known mouse cursor position.

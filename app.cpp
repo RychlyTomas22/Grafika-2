@@ -1016,9 +1016,8 @@ int App::run()
                 if (ImGui::Button(is_fullscreen_ ? "Windowed (F11)" : "Fullscreen (F11)")) {
                     toggle_fullscreen_();
                 }
-
-                ImGui::Checkbox("Animate (P)", &animate_color_);
-                ImGui::ColorEdit4("Triangle", &tri_color_.x);
+                //ImGui::Checkbox("Animate (P)", &animate_color_);
+                //ImGui::ColorEdit4("Triangle", &tri_color_.x);
                 ImGui::ColorEdit4("Clear", &clear_color_.x);
 
                 ImGui::End();
@@ -1031,17 +1030,17 @@ int App::run()
             glClearColor(clear_color_.r, clear_color_.g, clear_color_.b, clear_color_.a);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-            glm::vec4 col = tri_color_;
-            if (animate_color_) {
-                const float tt = static_cast<float>(t);
-                const float w = 2.0f;
-                const float rmod = 0.5f + 0.5f * std::sin(tt * w + 0.0f);
-                const float gmod = 0.5f + 0.5f * std::sin(tt * w + 2.0943951f);
-                const float bmod = 0.5f + 0.5f * std::sin(tt * w + 4.1887902f);
-                col.r *= rmod;
-                col.g *= gmod;
-                col.b *= bmod;
-            }
+            // glm::vec4 col = tri_color_;
+            // if (animate_color_) {
+            //     const float tt = static_cast<float>(t);
+            //     const float w = 2.0f;
+            //     const float rmod = 0.5f + 0.5f * std::sin(tt * w + 0.0f);
+            //     const float gmod = 0.5f + 0.5f * std::sin(tt * w + 2.0943951f);
+            //     const float bmod = 0.5f + 0.5f * std::sin(tt * w + 4.1887902f);
+            //     col.r *= rmod;
+            //     col.g *= gmod;
+            //     col.b *= bmod;
+            // }
 
             // Fragment shader expects: uniform vec4 ucolor;
 
@@ -1347,15 +1346,16 @@ void App::on_key(int key, int /*scancode*/, int action, int /*mods*/)
         show_imgui = !show_imgui;
         break;
 
-    case GLFW_KEY_P:
-        animate_color_ = !animate_color_;
-        break;
-
+    // [CURRENTLY NO EFFECT]
+    // case GLFW_KEY_P:
+    //     animate_color_ = !animate_color_;
+    //     break;
+    //
     case GLFW_KEY_C: {
         std::uniform_real_distribution<float> u(0.0f, 1.0f);
         clear_color_ = {u(rng_), u(rng_), u(rng_), 1.0f};
         break;
-    }
+     }
 
     case GLFW_KEY_V:
         vsync_on_ = !vsync_on_;
@@ -1417,7 +1417,7 @@ void App::on_mouse_button(int button, int action, int /*mods*/)
 
         left_mouse_down_ = true;
         std::uniform_real_distribution<float> u(0.0f, 1.0f);
-        tri_color_ = {u(rng_), u(rng_), u(rng_), 1.0f};
+        //tri_color_ = {u(rng_), u(rng_), u(rng_), 1.0f};
         return;
     }
 
