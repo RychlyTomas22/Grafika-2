@@ -4,6 +4,11 @@ Real-time 3D application using **OpenGL 4.6 Core Profile**, GLSL shaders, GLFW, 
 
 The project was created for the assignment **Create a multiplatform real-time 3D application**.
 
+## Origin and contributions
+
+This course project started from a school-provided code skeleton; some source files still carry an `author: JJ` header from that starting point. The commits in this repository document my later work on resource loading, camera controls and transformations, lighting, multiple scene objects, collisions, transparency, particles, and documentation. The author header does not describe authorship of every later feature.
+
+
 ---
 
 ## Implemented features
